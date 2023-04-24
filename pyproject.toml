@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "sandbox"
+version = "0.1.0"
+description = ""
+authors = ["Henrik Anfinsen <henrik@solgt.no>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9.0,<3.11"
+"solgt.db" = {path = "../py/lib/db", develop = true}
+"solgt.priceindex" = {path = "../py/lib/priceindex", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
