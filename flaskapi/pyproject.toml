@@ -7,8 +7,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9.0,<3.11"
-"solgt.db" = {path = "../py/lib/db", develop = true}
 "solgt.priceindex" = {path = "../py/lib/priceindex", develop = true}
+flask = "^2.2.3"
 
 [build-system]
 requires = ["poetry-core"]

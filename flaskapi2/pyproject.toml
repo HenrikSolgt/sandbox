@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "flaskapi2"
+version = "0.1.0"
+description = ""
+authors = ["Henrik Anfinsen <henrik@solgt.no>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9.0,<3.11"
+flask = "^2.2.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

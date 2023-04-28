@@ -1,0 +1,48 @@
+FROM python:3.10.11-slim-buster as builder
+
+EXPOSE 5002
+
+ENV PYTHONDONTWRITEBYTECODE 1 \
+    PYTHONUNBUFFERED 1
+
+RUN python3 -m venv /venv
+
+# Install Poetry and add it to path
+RUN apt-get update \
+    && apt-get install curl -y \
+    && curl -sSL https://install.python-poetry.org | python3 - --version 1.2.0b2
+
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /app/flaskapi
+
+COPY ./henrik /henrik
+
+RUN cd ../..
+COPY ./py/lib /lib
+# COPY ./sandbox/flaskapi/poetry.lock ./sandbox/flaskapi/pyproject.toml /app/flaskapi/
+
+# RUN . /venv/bin/activate && poetry lock --no-update \
+#    && poetry install --with build --without dev --no-interaction --no-ansi
+# COPY ./sandbox/flaskapi /app/flaskapi
+# RUN . /venv/bin/activate && poetry build
+
+# FROM python:3.10.11-slim-buster as final
+
+# RUN apt-get update \
+#     && apt-get install curl -y \
+#     && apt-get install -y --no-install-recommends libgomp1 \
+#     && curl -sSL https://install.python-poetry.org | python3 - --version 1.2.0b2
+
+# ENV PATH="/root/.local/bin:$PATH"
+# ENV PYTHONUNBUFFERED=1
+
+# COPY --from=builder ./lib /lib
+# COPY --from=builder /app/flaskapi/ /app
+# COPY --from=builder /app/flaskapi/dist/*.whl /app/
+# COPY --from=builder /venv /venv
+
+# WORKDIR /app
+
+# RUN . /venv/bin/activate && poetry add /lib/db && poetry add /lib/priceindex
+# CMD  . /venv/bin/activate && gunicorn --bind 0.0.0.0:5002 flaskapi.app:app
