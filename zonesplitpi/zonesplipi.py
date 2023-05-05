@@ -11,6 +11,8 @@ from solgt.timeseries.date_t_converter import convert_date_to_t, convert_t_to_da
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+from zone_analysis import get_zone_geometry, get_zone_neighbors, get_zone_controid_distances
+
 # Remove warning
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -36,8 +38,6 @@ df[gr_krets] = df[gr_krets].astype(int)
 # Create zones
 df["zone"] = df[gr_krets] // 100
 
-df2 = df[df["zone"].isin([51, 58, 59, 60])]
-df3 = df[df["area_id"] == 17]
 zones = pd.Series(df["zone"].unique()).sort_values().reset_index(drop=True)
 
 # Loop all zones and create RSI for them all
@@ -65,11 +65,15 @@ for (i, zone_no) in enumerate(zones):
         rsi = pd.DataFrame(columns=["count", "date", "price"])
         print("Exception: " + str(e))
 
-    print(rsi["count"].sum())
     rs_count[i] = rsi["count"].sum()
+    print(rs_count[i])
     
     rsi_list.append(rsi)
 
+
+d = rsi_list[-1]
+plt.plot(d["date"], d["price"])
+plt.show()
 
 # Plot it all:
 fig1 = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.02)
@@ -78,6 +82,7 @@ fig1.append_trace(
     row=1,
     col=1,
 )
+
 
 for (i, rsi) in enumerate(rsi_list):
     print(i)
@@ -92,9 +97,8 @@ for (i, rsi) in enumerate(rsi_list):
     
 fig1.show()
 
-"""
-TODO:
-- Add weighting of nearest neighbor:
-    - To do this: i must manage to create a neigbor-matrix of the zones in 
 
-"""
+rsi_list2 = rsi_list.copy()
+
+zones2 = get_zone_geometry()
+zone2_neighbors = get_zone_neighbors(zones2)

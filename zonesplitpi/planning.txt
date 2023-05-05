@@ -1,0 +1,6 @@
+get zone polygons (all of them)
+get rsi for every zone (also the empty ones)
+get neighbors to every zone
+
+volume-weight merge the rsi values of the neighbors to the zone
+

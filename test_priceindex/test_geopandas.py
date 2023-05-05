@@ -15,6 +15,7 @@ import geopandas as gpd
 
 fp = "../../data/dataprocessing/geodata/Basisdata_03_Oslo_25832_Grunnkretser_FGDB.gdb"
 grunnkretser = gpd.read_file(fp, layer = 'grunnkretser_omrade')
+dummy = gpd.read_file(fp)
 grunnkretser.plot(column = 'grunnkretsnavn', figsize=(6, 6))
 plt.show(block=False)
 
@@ -174,7 +175,7 @@ fig = px.scatter_mapbox(
                    # color_discrete_sequence=["fuchsia"],
                     color = 'price_res',
                     zoom=11, height=600)
-fig.update_layout(mapbox_style="open-street-map")
+# fig.update_layout(mapbox_style="open-street-map")
 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
 fig.show()
 
