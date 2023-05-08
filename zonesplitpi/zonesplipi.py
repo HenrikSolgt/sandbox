@@ -11,6 +11,10 @@ from solgt.timeseries.date_t_converter import convert_date_to_t, convert_t_to_da
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+import matplotlib.pyplot as plt
+
+
+
 from zone_analysis import get_zone_geometry, get_zone_neighbors, get_zone_controid_distances
 
 # Remove warning
@@ -55,7 +59,7 @@ for (i, zone_no) in enumerate(zones):
     print("Zone number: " + str(zone_no) + ". Størrelse: " + str(len(df_zone)))
 
     # What follows are segments from get_RSI:
-    # Insert a hard limit here, since data before 2010 is not too sparse
+    # Insert a hard limit here, since data before 2010 is too sparse
     df_zone = df_zone[df_zone[date_col] >= datetime.date(2010, 1, 1)]
     df_zone.reset_index(drop=True, inplace=True)
 
@@ -71,9 +75,6 @@ for (i, zone_no) in enumerate(zones):
     rsi_list.append(rsi)
 
 
-d = rsi_list[-1]
-plt.plot(d["date"], d["price"])
-plt.show()
 
 # Plot it all:
 fig1 = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.02)
@@ -85,16 +86,16 @@ fig1.append_trace(
 
 
 for (i, rsi) in enumerate(rsi_list):
-    print(i)
-
+    print(zones[i])
     # Plot
     fig1.append_trace(
-        go.Scatter(x=rsi["date"], y=rsi["price"], name="Price, " + str(i)),
+        go.Scatter(x=rsi["date"], y=rsi["price"], name="Price, " + str(zones[i])),
         row=1,
         col=1,
     )
 
     
+
 fig1.show()
 
 
@@ -102,3 +103,13 @@ rsi_list2 = rsi_list.copy()
 
 zones2 = get_zone_geometry()
 zone2_neighbors = get_zone_neighbors(zones2)
+
+
+# Testing:
+rsi1 = rsi_list2[10]
+rsi2 = rsi_list2[58]
+
+# Diff matrix:
+v = rsi1["price"].values
+d = (v - v.reshape(-1, 1))
+

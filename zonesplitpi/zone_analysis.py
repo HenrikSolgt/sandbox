@@ -30,18 +30,15 @@ def get_zone_neighbors(zones):
     """
     Find all neighbours of a zone using GeoPandas' intersects method. 
     Returns: 
-        neighbor_matrix: (DataFrame) DataFrame with 1 if two zones are neighbors, 0 otherwise.
+        neighbor_matrix: A numpy matrix with 1 if two zones are neighbors (or itself), 0 otherwise
     """
     N = len(zones)
     neighbor_matrix = np.zeros((N, N))
 
     for i in range(N):
         neighbor_matrix[:, i] = zones["geometry"][i].intersects(zones["geometry"])
-        
-    np.fill_diagonal(neighbor_matrix, 0)
 
-    return pd.DataFrame(neighbor_matrix)
-
+    return neighbor_matrix
 
 
 def get_zone_controid_distances(zones):
@@ -51,7 +48,6 @@ def get_zone_controid_distances(zones):
     """
 
     N = len(zones)
-
     dist_matrix = np.zeros((N, N))
 
     zones["centroid"] = zones["geometry"].centroid
@@ -59,5 +55,5 @@ def get_zone_controid_distances(zones):
     for i in range(N):
         dist_matrix[:, i] = zones["centroid"][i].distance(zones["centroid"])
 
-    return pd.DataFrame(dist_matrix)
+    return dist_matrix
     
