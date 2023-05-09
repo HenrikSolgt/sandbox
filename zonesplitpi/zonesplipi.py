@@ -46,7 +46,7 @@ df_a["id"] = df_a[unitkey_col] # The dwelling identifier
 
 
 # Create zones
-df_a["zone"] = df_a[gr_krets] // 1000
+df_a["zone"] = df_a[gr_krets] // 100
 
 zones = pd.Series(df_a["zone"].unique()).sort_values().reset_index(drop=True)
 
@@ -109,7 +109,7 @@ zone_count.fillna(0, inplace=True)
 rsi_all["pred_w"] = smooth_w(rsi_all["pred"], rsi_all["count"], n = 5)
 rsi_all["price_w"] = np.exp(rsi_all["pred_w"])
 
-zone_neighbors = get_zone_neighbors(get_zone_geometry(1000))
+zone_neighbors = get_zone_neighbors(get_zone_geometry(100))
 np.fill_diagonal(zone_neighbors, 0)
 
 zone_pred.fillna(0, inplace=True)
