@@ -3,7 +3,7 @@ import pandas as pd
 import geopandas as gpd
 
 
-def get_zone_geometry():
+def get_zone_geometry(div_num = 100):
     """
         Loads Basisdata Grunnkrets geometry and returns the geometry of the zones. The zones are defined as the first two digits of the grunnkretsnumber.
         Returns:
@@ -17,7 +17,7 @@ def get_zone_geometry():
     grunnkretser["grunnkretsnummer"] = grunnkretser["grunnkretsnummer"].apply(lambda x: int(x[-4:]))
 
     # The zones are the first two digits of the grunnkretsnumber
-    grunnkretser["zone"] = grunnkretser["grunnkretsnummer"] // 100
+    grunnkretser["zone"] = grunnkretser["grunnkretsnummer"] // div_num
 
     # Dissolve by zone and merge grunnkretser constituting the same zone, but keep zone as a column
     zones = grunnkretser.dissolve(by = 'zone', as_index = False)[["zone", "geometry"]]
