@@ -38,7 +38,9 @@ def get_zone_neighbors(zones):
     for i in range(N):
         neighbor_matrix[:, i] = zones["geometry"][i].intersects(zones["geometry"])
 
-    return neighbor_matrix
+    res = pd.DataFrame(neighbor_matrix, index = zones["zone"], columns = zones["zone"])
+
+    return res
 
 
 def get_zone_controid_distances(zones):
@@ -54,6 +56,8 @@ def get_zone_controid_distances(zones):
 
     for i in range(N):
         dist_matrix[:, i] = zones["centroid"][i].distance(zones["centroid"])
+
+    res = pd.DataFrame(dist_matrix, index = zones["zone"], columns = zones["zone"])
 
     return dist_matrix
     
