@@ -5,7 +5,7 @@ import numpy as np
 
 # Solgt packages
 from solgt.db.MT_parquet import get_parquet_as_df
-from solgt.priceindex.repeatsales import get_RSI, convert_MT_data_to_ttp, create_and_solve_OLS_problem, convert_OLS_res_to_RSI
+from solgt.priceindex.repeatsales import get_RSI, add_derived_MT_columns, get_repeated_idx, get_df_ttp_from_RS_idx, create_and_solve_OLS_problem
 from solgt.timeseries.date_t_converter import convert_date_to_t, convert_t_to_date
 from solgt.timeseries.filter import smooth_w
 
@@ -14,215 +14,247 @@ import plotly.graph_objects as go
 
 import matplotlib.pyplot as plt
 
-from zone_analysis import get_zone_geometry, get_zone_neighbors, get_zone_controid_distances
+from zone_analysis import get_zone_geometry, get_zone_neighbors
 
 # Remove warning
 pd.options.mode.chained_assignment = None  # default='warn'
 
-
 zone_div = 100
 
 # TODO: Include all zones as identified by get_zone_geometry in the analysis
-
 
 # Constants
 key_col = "unitkey"
 date_col = "sold_date"
 price_col = "price_inc_debt"
 gr_krets = "grunnkrets_id"
+columns_of_interest = [key_col, date_col, price_col, gr_krets]
 # period = "quarterly"
 period = "monthly"
 
-def load_MT_data(zone_div=100):
+
+def load_MT_data(zone_div=100, period="monthly", date0=None):
     # Load raw data
     df_raw = get_parquet_as_df("C:\Code\data\MT.parquet")
 
     # Copy and preprocess
-    df_a = df_raw.copy()
+    df = df_raw[columns_of_interest].copy()
+
+    # Preprocess: manipulation of already existing columns
         # Remove entries without a valid grunnkrets
-    df_a = df_a[~df_a[gr_krets].isna()].reset_index(drop=True)
+    df = df[~df[gr_krets].isna()].reset_index(drop=True)
         # Typecast to required types
-    df_a[date_col] = df_a[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
-    df_a[gr_krets] = df_a[gr_krets].astype(int)
-    df_a["zone"] = df_a[gr_krets] // zone_div
+    df[date_col] = df[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
+    df[gr_krets] = df[gr_krets].astype(int)
 
-    return df_a
+    # Derived columns used by this module, and zone column
+    df = add_derived_MT_columns(df, period, date0)
+    df["zone"] = df[gr_krets] // zone_div
+
+    return df
 
 
-def get_zone_OLS_and_count(df_a, t0, t1, period="monthly"):
+def get_OLS_and_count(df, t0, t1):
+    """
+    Get OLS and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
+    All raw transactions from df is used. The filtering is performed after the transactions have been matched.
+    Inputs:
+        - df: DataFrame with columns "id", "y", "t"
+        - t0: Start time
+        - t1: End time
+    """
+
     T_arr = np.arange(t0, t1)
-    zone_arr = pd.Series(df_a["zone"].unique()).sort_values().reset_index(drop=True)
-    zone_OLS = pd.DataFrame(index=T_arr, columns=zone_arr)
-    zone_counts = pd.DataFrame(index=T_arr, columns=zone_arr)
 
-    for (i, zone_no) in enumerate(zone_arr):
-        df_zone = df_a[df_a["zone"] == zone_no].reset_index(drop=True)
+    # Get repeated sales index and create df_ttp
+    R_idx = get_repeated_idx(df)
+    df_ttp = get_df_ttp_from_RS_idx(df, R_idx)
+
+    if (len(df_ttp) > 0):
+        OLS_res = create_and_solve_OLS_problem(df_ttp)
+        OLS_res = OLS_res[(OLS_res["t"] >= t0) & (OLS_res["t"] < t1)].reset_index(drop=True)
+
+        OLS = OLS_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
+        OLS_count = OLS_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
+
+        return OLS, OLS_count
+    else:
+        return pd.DataFrame(index=T_arr, columns=["pred"]), pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
+
+
+
+# Create OLS for all zones
+def get_zone_OLS_and_count(df, t0, t1, zones_arr):
+    """
+    Get OLS and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
+    All raw transactions from df is used. The filtering on time period [t0, t1) is performed after the transactions have been matched.
+    Inputs:
+        - df: DataFrame with columns "unitkey", "price_inc_debt", "zone", "t"
+        - t0: Start time
+        - t1: End time
+        - zones_arr: Array of zones to compute OLS for
+    """
+
+    T_arr = np.arange(t0, t1)
+    # Create empty dataframes
+    zone_OLS = pd.DataFrame(index=T_arr, columns=zones_arr)
+    zone_counts = pd.DataFrame(index=T_arr, columns=zones_arr)
+
+    for zone_no in zones_arr:
+        # Filter the MT data for the current zone
+        df_zone = df[df["zone"] == zone_no].reset_index(drop=True)
         print("Zone number: " + str(zone_no) + ". Number of transactions: " + str(len(df_zone)))
-        try:
-            df_ttp = convert_MT_data_to_ttp(df_zone, period)
-            OLS_res = create_and_solve_OLS_problem(df_ttp)
 
-            OLS_res.set_index("t", inplace=True)
-            zone_OLS[zone_no] = OLS_res["pred"]
-            zone_counts[zone_no] = OLS_res["count"]
-        except Exception as e:
-            rsi = pd.DataFrame(columns=["count", "date", "price"])
-            print("Exception: " + str(e))
+        OLS, OLS_count = get_OLS_and_count(df_zone, t0, t1)
+
+        zone_OLS[zone_no] = OLS["pred"]
+        zone_counts[zone_no] = OLS_count["count"]
 
     # Substitute NaN with 0
     zone_OLS.fillna(0, inplace=True)
     zone_counts.fillna(0, inplace=True)
 
+    # Convert to int
+    zone_counts = zone_counts.astype(int)
+
+    # Normalize zone_OLS to start at 0
+    zone_OLS = zone_OLS - zone_OLS.iloc[0]
+
     return zone_OLS, zone_counts
+
+
+
+def compute_zone_OLS_weighted(OLS_z, OLS_z_count):
+    """
+    Compute a volume-weighted OLS for all zones in OLS_z.
+    Each zone is weighted by the number of transactions in the zone itself and its neighboring zones.
+    Inputs:
+        - OLS_z: DataFrame of OLS values with index "t" and zone numbers as column names
+        - OLS_z_count: DataFrame of counts with index "t" and zone numbers as column names
+    Returns:
+        - OLS_z_w: DataFrame of volume-weighted OLS values with index "t" and zone numbers as column names
+        - OLS_z_count_w: DataFrame with total number of transactions used in computation of OLS_z_w
+    """
+
+    OLS_z_w = OLS_z.copy()
+    OLS_z_count_w = OLS_z_count.copy()
+    OLS_z_w[:] = np.NaN
+    OLS_z_count_w[:] = np.NaN
+
+    central_zone_w = 1
+    # Volume-weighted OLS by neighboring zones
+    for zone in OLS_z.columns:
+        neighbors = zones_neighbors[zones_neighbors[zone] == 1].index
+
+        neighbors_OLS_diff = OLS_z[neighbors]
+        neighbors_count = OLS_z_count[neighbors]
+
+        weighted_sum = neighbors_OLS_diff.multiply(neighbors_count).sum(axis=1) + OLS_z[zone] * central_zone_w * OLS_z_count[zone]
+        count = neighbors_count.sum(axis=1) + central_zone_w * OLS_z_count[zone]
+
+        OLS_z_w[zone] = weighted_sum / count
+        OLS_z_count_w[zone] = count.astype(int)
+
+    return OLS_z_w, OLS_z_count_w
+
 
 
 """
 MAIN PROGRAM
 """
 
-# Load all data
-df_a = load_MT_data(zone_div)
 
-# Loop all zones and create RSI for them all
+# Define time period
 date0 = datetime.date(2014, 1, 1)
 date1 = datetime.date(2023, 1, 1)
 [t0, t1] = convert_date_to_t([date0, date1], period)
-# Get OLS result from all MT data
 
-df_ttp_a = convert_MT_data_to_ttp(df_a, period)
-OLS_res_a = create_and_solve_OLS_problem(df_ttp_a)
-OLS_res_a = OLS_res_a[(OLS_res_a["t"] >= t0) & (OLS_res_a["t"] < t1)].reset_index(drop=True)
+# Load MT data in the correct formats and with time index "t"
+df_MT = load_MT_data(zone_div, period, date0)
 
-# Create RSI for all zones
-zone_OLS, zone_counts = get_zone_OLS_and_count(df_a, t0, t1, period)
+# Get OLS and count for MT data
+OLS_a, OLS_a_count = get_OLS_and_count(df_MT, t0, t1)
 
-# Normalize zone_OLS to start at 0
-zone_OLS = zone_OLS - zone_OLS.iloc[0]
-
-# Volume weighted price index based on zone neighbors
+# Fetch information about the zones
 zones_geometry = get_zone_geometry(zone_div)
+zones_arr = zones_geometry["zone"]
 zones_neighbors = get_zone_neighbors(zones_geometry)
-np.fill_diagonal(zones_neighbors.values, 0)
 
-# Remove zones that has no repeated sales
-cols = zone_OLS.columns
-zones_neighbors = zones_neighbors[cols].loc[cols]
+# Create OLS for all zones
+OLS_z, OLS_z_count = get_zone_OLS_and_count(df_MT, t0, t1, zones_arr)
 
-# Make zone_OLS_w as a copy of zone_OLS with all NaNs
-zone_OLS_w = zone_OLS.copy()
-zone_counts_w = zone_counts.copy()
-zone_OLS_w[:] = np.nan
-zone_counts_w[:] = np.nan
-
-central_zone_w = 1
-
-# TODO: Weight should be higher on the central zone
-for zone in zone_OLS.columns:
-    neighbors = zones_neighbors[zones_neighbors[zone] == 1].index
-
-    neighbors_OLS_diff = zone_OLS[neighbors]
-    neighbors_count = zone_counts[neighbors]
-
-    weighted_sum = neighbors_OLS_diff.multiply(neighbors_count).sum(axis=1) + zone_OLS[zone] * central_zone_w * zone_counts[zone]
-    count = neighbors_count.sum(axis=1) + central_zone_w * zone_counts[zone]
-
-    zone_OLS_w[zone] = weighted_sum / count
-    zone_counts_w[zone] = count
+# Compute the weighted OLS based on the neighboring zones
+OLS_z_w, OLS_z_count_w = compute_zone_OLS_weighted(OLS_z, OLS_z_count)
 
 
-# Filter in time
-OLS_res_a["pred_t"] = smooth_w(OLS_res_a["pred"], OLS_res_a["count"], 3)
+"""
+Test the new price indexes agains the old one on a set of transactions
+"""
 
-zone_OLS_w_t = zone_OLS_w.copy()
-for col in zone_OLS.columns:
-    zone_OLS_w_t[col] = smooth_w(zone_OLS_w[col], zone_counts_w[col], 3)
+# Get repeated sales index
+R_idx = get_repeated_idx(df_MT)
+
+# Convert repeated sales to ttp format by extracting information from the dataframe df, and add the zone information
+df_ttp_zone = get_df_ttp_from_RS_idx(df_MT, R_idx)
+df_ttp_zone["zone"] = df_MT.iloc[R_idx["I0"]]["zone"].reset_index(drop=True)
+
+# Filter away all transactions that are not in the time period [t0, t1)
+df_ttp_zone = df_ttp_zone[(df_ttp_zone["t0"] >= t0) & (df_ttp_zone["t0"] < t1)].reset_index(drop=True)
+df_ttp_zone = df_ttp_zone[(df_ttp_zone["t1"] >= t0) & (df_ttp_zone["t1"] < t1)].reset_index(drop=True)
+
+# Use the above information to compute the estimated dp from the OLS
+pred0 = np.zeros(len(df_ttp_zone))
+pred1 = np.zeros(len(df_ttp_zone))
+pred0_z = np.zeros(len(df_ttp_zone))
+pred1_z = np.zeros(len(df_ttp_zone))
+
+for i in range(len(df_ttp_zone)):
+    pred0[i] = OLS_a.loc[df_ttp_zone["t0"][i]]
+    pred1[i] = OLS_a.loc[df_ttp_zone["t1"][i]]
+
+    pred0_z[i] = OLS_z_w[df_ttp_zone["zone"][i]].loc[df_ttp_zone["t0"][i]]
+    pred1_z[i] = OLS_z_w[df_ttp_zone["zone"][i]].loc[df_ttp_zone["t1"][i]]
+
+df_ttp_zone["dp_est"] = pred1 - pred0
+df_ttp_zone["dp_est_z"] = pred1_z - pred0_z
+df_ttp_zone["dp_e"] = df_ttp_zone["dp"] - df_ttp_zone["dp_est"]
+df_ttp_zone["dp_e_z"] = df_ttp_zone["dp"] - df_ttp_zone["dp_est_z"]
+
+# L1 norm:
+df_ttp_zone["L1_norm"] = (np.abs(df_ttp_zone["dp_e"] / df_ttp_zone["dp"])).sum() / len(df_ttp_zone)
+df_ttp_zone["L1_norm_z"] = (np.abs(df_ttp_zone["dp_e_z"] / df_ttp_zone["dp"])).sum() / len(df_ttp_zone)
+
+# Plot dp vs dp_est
+plt.figure()
+plt.scatter(df_ttp_zone["dp"], df_ttp_zone["dp_est"], s=1)
+plt.xlabel("dp")
+plt.ylabel("dp_est")
+plt.title("dp vs dp_est")
+plt.show(block=False)
+
+# Plot dp vs dp_est
+plt.figure()
+plt.scatter(df_ttp_zone["dp"], df_ttp_zone["dp_est_z"], s=1)
+plt.xlabel("dp")
+plt.ylabel("dp_est_z")
+plt.title("dp vs dp_est_z")
+plt.show(block=False)
+
+# Plot dp vs dp_est
+plt.figure()
+plt.scatter(df_ttp_zone["dp_est"], df_ttp_zone["dp_est_z"], s=1)
+plt.xlabel("dp_est")
+plt.ylabel("dp_est_z")
+plt.title("dp_est vs dp_est_z")
+plt.show(block=False)
 
 
-# Normalize: Shift all columns so that they all are centered around zero
-OLS_res_a["pred"] = OLS_res_a["pred"] - OLS_res_a["pred"].mean()
-OLS_res_a["pred_t"] = OLS_res_a["pred_t"] - OLS_res_a["pred_t"].mean()
-zone_OLS = zone_OLS.sub(zone_OLS.mean(axis=0), axis=1)
-zone_OLS_w = zone_OLS_w.sub(zone_OLS_w.mean(axis=0), axis=1)
-zone_OLS_w_t = zone_OLS_w_t.sub(zone_OLS_w_t.mean(axis=0), axis=1)
-
-# Convert to RSI
-rsi_a = convert_OLS_res_to_RSI(OLS_res_a, period)
-rsi_zones = np.exp(zone_OLS)
-rsi_zones_w = np.exp(zone_OLS_w)
-
-# Print all price indexes for all zones
-dates = convert_t_to_date(pd.Series(OLS_res_a["t"]), period)
-
-# Figure 1
-fig1 = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.02)
-
-fig1.append_trace(
-    go.Scatter(x=OLS_res_a["t"], y=OLS_res_a["pred"], name="Price, all"),
-    row=1,
-    col=1,
-)
-
-for col in rsi_zones.columns:
-    fig1.append_trace(
-        go.Scatter(x=OLS_res_a["t"], y=zone_OLS[col], name="Price, zone " + str(col)),
-        row=1,
-        col=1,
-    )
-    
-fig1.show()
-
-# fig1.write_html("output/fig1_" + period + "_raw.html")
-
-
-# Figure 2
-fig2 = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.02)
-
-fig2.append_trace(
-    go.Scatter(x=OLS_res_a["t"], y=OLS_res_a["pred"], name="Price, all"),
-    row=1,
-    col=1,
-)
-
-for col in rsi_zones_w.columns:
-    fig2.append_trace(
-        go.Scatter(x=OLS_res_a["t"], y=zone_OLS_w[col], name="Price, zone " + str(col)),
-        row=1,
-        col=1,
-    )
-
-
-fig2.show()
-
-# fig2.write_html("output/fig2_" + period + "_spatial_filtered.html")
+# Measure how similar the two price indexes are
+print("Correlation between dp and dp_est: ", df_ttp_zone["dp"].corr(df_ttp_zone["dp_est"]))
+print("Correlation between dp and dp_est_z: ", df_ttp_zone["dp"].corr(df_ttp_zone["dp_est_z"]))
 
 
 
-# Figure 3
-fig3 = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.02)
-
-fig3.append_trace(
-    go.Scatter(x=OLS_res_a["t"], y=OLS_res_a["pred"], name="Price, all"),
-    row=1,
-    col=1,
-)
-
-fig3.append_trace(
-    go.Scatter(x=OLS_res_a["t"], y=OLS_res_a["pred_t"], name="Price, all, filtered"),
-    row=1,
-    col=1,
-)
-
-for col in rsi_zones_w.columns:
-    fig3.append_trace(
-        go.Scatter(x=OLS_res_a["t"], y=zone_OLS_w_t[col], name="Price, zone " + str(col)),
-        row=1,
-        col=1,
-    )
-
-
-fig3.show()
-# fig3.write_html("output/fig3_" + period + "_time_filtered.html")
-
-
-
-# Plot counts
+# Compute MAE and MAPE
+MAE = np.mean(np.abs(df_ttp_zone["dp_e"]))
+MAE_z = np.mean(np.abs(df_ttp_zone["dp_e_z"]))
