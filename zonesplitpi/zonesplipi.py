@@ -175,6 +175,8 @@ df_MT = load_MT_data(zone_div, period, date0)
 # Get OLS and count for MT data
 OLS_a, OLS_a_count = get_OLS_and_count(df_MT, t0, t1)
 
+# OLS_a_date = convert_t_to_date(OLS_a.index, period)
+
 # Fetch information about the zones
 zones_geometry = get_zone_geometry(zone_div)
 zones_arr = zones_geometry["zone"]
@@ -220,9 +222,9 @@ df_ttp_zone["dp_est_z"] = pred1_z - pred0_z
 df_ttp_zone["dp_e"] = df_ttp_zone["dp"] - df_ttp_zone["dp_est"]
 df_ttp_zone["dp_e_z"] = df_ttp_zone["dp"] - df_ttp_zone["dp_est_z"]
 
+
+# HOW TO COMPUTE L1-NORM??
 # L1 norm:
-df_ttp_zone["L1_norm"] = (np.abs(df_ttp_zone["dp_e"] / df_ttp_zone["dp"])).sum() / len(df_ttp_zone)
-df_ttp_zone["L1_norm_z"] = (np.abs(df_ttp_zone["dp_e_z"] / df_ttp_zone["dp"])).sum() / len(df_ttp_zone)
 
 # Plot dp vs dp_est
 plt.figure()
@@ -254,7 +256,10 @@ print("Correlation between dp and dp_est: ", df_ttp_zone["dp"].corr(df_ttp_zone[
 print("Correlation between dp and dp_est_z: ", df_ttp_zone["dp"].corr(df_ttp_zone["dp_est_z"]))
 
 
+# Measure how similar the two price indexes are: L1 norm
+dp_e_mean = df_ttp_zone["dp_e"].mean()
+dp_e_z_mean = df_ttp_zone["dp_e_z"].mean()
 
-# Compute MAE and MAPE
-MAE = np.mean(np.abs(df_ttp_zone["dp_e"]))
-MAE_z = np.mean(np.abs(df_ttp_zone["dp_e_z"]))
+print("L1 norm, dp-dp_est: ", dp_e_mean)
+print("L1 norm, dp-dp_est_z: ", dp_e_z_mean)
+
