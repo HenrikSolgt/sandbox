@@ -21,7 +21,7 @@ pd.options.mode.chained_assignment = None  # default='warn'
 
 zone_div = 100
 
-# TODO: Include all zones as identified by get_zone_geometry in the analysis
+# TODO: Do a test-train-split: Train on just a subset of the data, and test on the rest
 
 # Constants
 key_col = "unitkey"
@@ -163,19 +163,31 @@ def compute_zone_OLS_weighted(OLS_z, OLS_z_count):
 MAIN PROGRAM
 """
 
+# TODO: Split into train and test data
+
 
 # Define time period
 date0 = datetime.date(2014, 1, 1)
 date1 = datetime.date(2023, 1, 1)
+
 [t0, t1] = convert_date_to_t([date0, date1], period)
 
 # Load MT data in the correct formats and with time index "t"
 df_MT = load_MT_data(zone_div, period, date0)
 
+# Get list of repeated sales
+R_idx = get_repeated_idx(df_MT)
+
+# Create test set: a shuffled version of the repeated sales
+R_idx_test = R_idx.sample(frac=1).reset_index(drop=True)
+
+# # Create test set: all non-repeated sales, which are not used in the computation of the RSI 
+# I_rep_sales = pd.concat([R_idx["I0"], R_idx["I1"]]).drop_duplicates().sort_values().reset_index(drop=True)
+# I_not_rep = pd.Series(list(set(df_MT.index) - set(I_rep_sales)))
+# df_MT_test = df_MT.loc[I_not_rep].reset_index(drop=True)
+
 # Get OLS and count for MT data
 OLS_a, OLS_a_count = get_OLS_and_count(df_MT, t0, t1)
-
-# OLS_a_date = convert_t_to_date(OLS_a.index, period)
 
 # Fetch information about the zones
 zones_geometry = get_zone_geometry(zone_div)
@@ -194,11 +206,11 @@ Test the new price indexes agains the old one on a set of transactions
 """
 
 # Get repeated sales index
-R_idx = get_repeated_idx(df_MT)
+R_idx = get_repeated_idx(df_MT_test)
 
 # Convert repeated sales to ttp format by extracting information from the dataframe df, and add the zone information
-df_ttp_zone = get_df_ttp_from_RS_idx(df_MT, R_idx)
-df_ttp_zone["zone"] = df_MT.iloc[R_idx["I0"]]["zone"].reset_index(drop=True)
+df_ttp_zone = get_df_ttp_from_RS_idx(df_MT_test, R_idx)
+df_ttp_zone["zone"] = df_MT_test.iloc[R_idx["I0"]]["zone"].reset_index(drop=True)
 
 # Filter away all transactions that are not in the time period [t0, t1)
 df_ttp_zone = df_ttp_zone[(df_ttp_zone["t0"] >= t0) & (df_ttp_zone["t0"] < t1)].reset_index(drop=True)
@@ -221,10 +233,6 @@ df_ttp_zone["dp_est"] = pred1 - pred0
 df_ttp_zone["dp_est_z"] = pred1_z - pred0_z
 df_ttp_zone["dp_e"] = df_ttp_zone["dp"] - df_ttp_zone["dp_est"]
 df_ttp_zone["dp_e_z"] = df_ttp_zone["dp"] - df_ttp_zone["dp_est_z"]
-
-
-# HOW TO COMPUTE L1-NORM??
-# L1 norm:
 
 # Plot dp vs dp_est
 plt.figure()
