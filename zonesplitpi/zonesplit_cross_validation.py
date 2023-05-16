@@ -11,8 +11,6 @@ from solgt.timeseries.filter import smooth_w
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
-import matplotlib.pyplot as plt
-
 from zone_analysis import get_zone_geometry, get_zone_neighbors
 from create_OLS import load_MT_data, score_RSI_split, get_OLS_and_count, get_zone_OLS_and_count, compute_zone_OLS_weighted
 
@@ -20,12 +18,6 @@ from create_OLS import load_MT_data, score_RSI_split, get_OLS_and_count, get_zon
 pd.options.mode.chained_assignment = None  # default='warn'
 
 zone_div = 100
-
-# TODO: Do a test-train-split: Train on just a subset of the data, and test on the rest
-
-period = "quarterly"
-# period = "monthly"
-
 
 
 """
@@ -45,11 +37,21 @@ period = "monthly"
 # Load MT data in the correct formats and with time index "t"
 df_MT = load_MT_data(zone_div, period, date0)
 
+
+# Split into train and test data sets:
 # Get list of repeated sales
 R_idx = get_repeated_idx(df_MT)
 
+R_idx_train = R_idx.sample(frac=0.8)
+R_idx_test = R_idx.drop(R_idx_train.index)
+
+I_train = pd.Series(pd.concat([R_idx_train["I0"], R_idx_train["I1"]], axis=0).unique()).sort_values()
+I_test = pd.Series(pd.concat([R_idx_test["I0"], R_idx_test["I1"]], axis=0).unique()).sort_values()
+df_MT_train = df_MT.loc[I_train].reset_index(drop=True)
+df_MT_test = df_MT.loc[I_test].reset_index(drop=True)
+
 # Get OLS and count for MT data
-OLS_a, OLS_a_count = get_OLS_and_count(df_MT, t0, t1)
+OLS_a, OLS_a_count = get_OLS_and_count(df_MT_train, t0, t1)
 
 # Fetch information about the zones
 zones_geometry = get_zone_geometry(zone_div)
@@ -57,54 +59,17 @@ zones_arr = zones_geometry["zone"]
 zones_neighbors = get_zone_neighbors(zones_geometry)
 
 # Create OLS for all zones
-OLS_z, OLS_z_count = get_zone_OLS_and_count(df_MT, t0, t1, zones_arr)
+OLS_z, OLS_z_count = get_zone_OLS_and_count(df_MT_train, t0, t1, zones_arr)
 
 # Compute the weighted OLS based on the neighboring zones
 OLS_z_w, OLS_z_count_w = compute_zone_OLS_weighted(OLS_z, OLS_z_count, zones_neighbors)
 
 # Score the RSI
-df_ttp_zone = score_RSI_split(df_MT, t0, t1, OLS_a, OLS_z)
-df_ttp_zone_w = score_RSI_split(df_MT, t0, t1, OLS_a, OLS_z_w)
-
-
-"""
-CREATE FOR PERIOD QUARTERLY
-"""
-period = "quarterly"
-
-[t0, t1] = convert_date_to_t([date0, date1], period)
-# Load MT data in the correct formats and with time index "t"
-df_MT = load_MT_data(zone_div, period, date0)
-
-# Get list of repeated sales
-R_idx = get_repeated_idx(df_MT)
-
-# Get OLS and count for MT data
-OLS_a, OLS_a_count = get_OLS_and_count(df_MT, t0, t1)
-
-# Fetch information about the zones
-zones_geometry = get_zone_geometry(zone_div)
-zones_arr = zones_geometry["zone"]
-zones_neighbors = get_zone_neighbors(zones_geometry)
-
-# Create OLS for all zones
-OLS_z, OLS_z_count = get_zone_OLS_and_count(df_MT, t0, t1, zones_arr)
-
-# Compute the weighted OLS based on the neighboring zones
-OLS_z_w, OLS_z_count_w = compute_zone_OLS_weighted(OLS_z, OLS_z_count, zones_neighbors)
-
-# Score the RSI
-df_ttp_zone_q = score_RSI_split(df_MT, t0, t1, OLS_a, OLS_z)
-df_ttp_zone_q_w = score_RSI_split(df_MT, t0, t1, OLS_a, OLS_z_w)
-
+df_ttp_zone = score_RSI_split(df_MT_test, t0, t1, OLS_a, OLS_z)
+df_ttp_zone_w = score_RSI_split(df_MT_test, t0, t1, OLS_a, OLS_z_w)
 
 # Measure how similar the two price indexes are: L1 norm
 print("Original:")
 print("L1 norm, dp-dp_est: ", abs(df_ttp_zone["dp_e"]).mean())
-print("Monthly:")
 print("L1 norm, dp-dp_est_z: ", abs(df_ttp_zone["dp_e_z"]).mean())
 print("L1 norm, dp-dp_est_z_w: ", abs(df_ttp_zone_w["dp_e_z"]).mean())
-print("Quarterly:")
-print("L1 norm, dp-dp_est_z_q: ", abs(df_ttp_zone_q["dp_e_z"]).mean())
-print("L1 norm, dp-dp_est_z_q_w: ", abs(df_ttp_zone_q_w["dp_e_z"]).mean())
-
