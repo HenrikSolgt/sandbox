@@ -68,6 +68,7 @@ class OLS_class:
 
 
     def get_dates(self):
+        # Returns the dates corresponding to the time indices
         return convert_t_to_date(self.t, self.period, self.date0)
     
 
@@ -88,7 +89,25 @@ class OLS_class:
         self.zones = zones_arr
 
 
-    def resample_to_period(new_period, ref_date=None):
+    def shift_to_zero(self):
+        """
+        Shifts the OLS so that it starts at zero for all entries.
+        """
+        if zone_div is None:
+            self.OLS = self.OLS - self.OLS[0]
+        else:
+            self.OLS = self.OLS - self.OLS.iloc[0, :]
+
+
+    def interpolate_to_dates(self, new_dates):
+        """
+        Interpolates the OLS to the given dates, with extrapolation.
+        Does not update the anything internally, but simply returns the interpolated values.
+        """
+        a = 0
+
+
+    def resample_to_period(self, new_period, ref_date=None):
         """
         Resamples the OLS to the new period format. A reference ref_date can be given if new_period is an integer.
         """
@@ -99,6 +118,7 @@ class OLS_class:
         Filters the OLS values in time using the count as weights.
         """
         a = 0
+
 
 """
 MAIN PROGRAM
