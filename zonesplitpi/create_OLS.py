@@ -17,7 +17,7 @@ gr_krets = "grunnkrets_id"
 columns_of_interest = [key_col, date_col, price_col, gr_krets]
 
 
-def load_MT_data(zone_div=100, period="monthly", date0=None):
+def load_MT_data():
     # Load raw data
     df_raw = get_parquet_as_df("C:\Code\data\MT.parquet")
 
@@ -30,10 +30,6 @@ def load_MT_data(zone_div=100, period="monthly", date0=None):
         # Typecast to required types
     df[date_col] = df[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
     df[gr_krets] = df[gr_krets].astype(int)
-
-    # Derived columns used by this module, and zone column
-    df = add_derived_MT_columns(df, period, date0)
-    df["zone"] = df[gr_krets] // zone_div
 
     return df
 
@@ -61,6 +57,13 @@ def get_OLS_and_count(df, t0, t1):
         OLS = OLS_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
         OLS_count = OLS_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
 
+        # Remove index names
+        OLS.index.name = None
+        OLS_count.index.name = None
+
+        # Normalize to start at 0
+        OLS = OLS - OLS.iloc[0]  
+
         return OLS, OLS_count
     else:
         return pd.DataFrame(index=T_arr, columns=["pred"]), pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
@@ -68,16 +71,19 @@ def get_OLS_and_count(df, t0, t1):
 
 
 # Create OLS for all zones
-def get_zone_OLS_and_count(df, t0, t1, zones_arr):
+def get_zone_OLS_and_count(df, t0, t1):
     """
-    Get OLS and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
-    All raw transactions from df is used. The filtering on time period [t0, t1) is performed after the transactions have been matched.
+    Get OLS and count for all matched transactions in DataFrame df, for the time period [t0, t1).
+    All raw transactions from df are used. The filtering on time period [t0, t1) is performed after the transactions have been matched.
+    Note that only the zones occuring in df are included in the output.
     Inputs:
         - df: DataFrame with columns "unitkey", "price_inc_debt", "zone", "t"
         - t0: Start time
         - t1: End time
-        - zones_arr: Array of zones to compute OLS for
     """
+
+    zones_arr = df["zone"].unique()
+    zones_arr.sort()
 
     T_arr = np.arange(t0, t1)
     # Create empty dataframes

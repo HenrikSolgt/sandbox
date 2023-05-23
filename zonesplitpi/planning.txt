@@ -1,6 +1,7 @@
-get zone polygons (all of them)
-get rsi for every zone (also the empty ones)
-get neighbors to every zone
-
-volume-weight merge the rsi values of the neighbors to the zone
+class OLS_class()
+    - A class for creation of OLS objects.
+    - Everything can be included here, including cross validation
+    Functions:
+        - create OLS data from MT_transactions
+        
 
