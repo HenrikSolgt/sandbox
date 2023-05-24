@@ -5,7 +5,7 @@ import pandas as pd
 
 
 # Solgt packages
-from solgt.db.MT_parquet import get_parquet_as_df
+from solgt.db.MT_parquet import get_parquet_as_df, update_MT_parquet_file
 from solgt.priceindex.repeatsales import add_derived_MT_columns, get_repeated_idx, get_df_ttp_from_RS_idx, create_and_solve_LORSI_OLS_problem
 
 
@@ -16,13 +16,11 @@ price_col = "price_inc_debt"
 gr_krets = "grunnkrets_id"
 columns_of_interest = [key_col, date_col, price_col, gr_krets]
 
+# update_MT_parquet_file("C:\Code\data\MT.parquet")
 
 def load_MT_data():
     # Load raw data
-    df_raw = get_parquet_as_df("C:\Code\data\MT.parquet")
-
-    # Copy and preprocess
-    df = df_raw.copy()
+    df = get_parquet_as_df("C:\Code\data\MT.parquet")
 
     # Preprocess: manipulation of already existing columns
         # Remove entries without a valid grunnkrets
