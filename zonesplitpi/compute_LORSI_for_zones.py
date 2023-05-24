@@ -6,7 +6,7 @@ import pandas as pd
 
 # Solgt packages
 from solgt.db.MT_parquet import get_parquet_as_df
-from solgt.priceindex.repeatsales import add_derived_MT_columns, get_repeated_idx, get_df_ttp_from_RS_idx, create_and_solve_OLS_problem
+from solgt.priceindex.repeatsales import add_derived_MT_columns, get_repeated_idx, get_df_ttp_from_RS_idx, create_and_solve_LORSI_OLS_problem
 
 
 # Constants
@@ -34,9 +34,10 @@ def load_MT_data():
     return df
 
 
-def get_OLS_and_count(df, t0, t1):
+# Get LORSI and count for the whole region
+def get_LORSI_and_count(df, t0, t1):
     """
-    Get OLS and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
+    Get Log-RSI (LORSI) and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
     All raw transactions from df is used. The filtering is performed after the transactions have been matched.
     Inputs:
         - df: DataFrame with columns "id", "y", "t"
@@ -51,29 +52,30 @@ def get_OLS_and_count(df, t0, t1):
     df_ttp = get_df_ttp_from_RS_idx(df, R_idx)
 
     if (len(df_ttp) > 0):
-        OLS_res = create_and_solve_OLS_problem(df_ttp)
-        OLS_res = OLS_res[(OLS_res["t"] >= t0) & (OLS_res["t"] < t1)].reset_index(drop=True)
+        LORSI_res = create_and_solve_LORSI_OLS_problem(df_ttp)
+        LORSI_res = LORSI_res[(LORSI_res["t"] >= t0) & (LORSI_res["t"] < t1)].reset_index(drop=True)
 
-        OLS = OLS_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
-        OLS_count = OLS_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
-
-        # Remove index names
-        OLS.index.name = None
-        OLS_count.index.name = None
+        # Split LORSI_res into LORSI and count dataframes
+        LORSI = LORSI_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
+        count = LORSI_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
 
         # Normalize to start at 0
-        OLS = OLS - OLS.iloc[0]  
-
-        return OLS, OLS_count
+        LORSI = LORSI - LORSI.iloc[0]  
     else:
-        return pd.DataFrame(index=T_arr, columns=["pred"]), pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
+        LORSI = pd.DataFrame(index=T_arr, columns=["pred"])
+        count = pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
+
+    # Remove index names
+    LORSI.index.name = None
+    count.index.name = None
+
+    return LORSI, count
 
 
-
-# Create OLS for all zones
-def get_zone_OLS_and_count(df, t0, t1):
+# Create LORSI and count for all zones
+def get_LORSI_and_count_for_zones(df, t0, t1):
     """
-    Get OLS and count for all matched transactions in DataFrame df, for the time period [t0, t1).
+    Get LORSI and count for all matched transactions in DataFrame df, for the time period [t0, t1).
     All raw transactions from df are used. The filtering on time period [t0, t1) is performed after the transactions have been matched.
     Note that only the zones occuring in df are included in the output.
     Inputs:
@@ -87,7 +89,7 @@ def get_zone_OLS_and_count(df, t0, t1):
 
     T_arr = np.arange(t0, t1)
     # Create empty dataframes
-    zone_OLS = pd.DataFrame(index=T_arr, columns=zones_arr)
+    zone_LORSI = pd.DataFrame(index=T_arr, columns=zones_arr)
     zone_counts = pd.DataFrame(index=T_arr, columns=zones_arr)
 
     for zone_no in zones_arr:
@@ -95,26 +97,26 @@ def get_zone_OLS_and_count(df, t0, t1):
         df_zone = df[df["zone"] == zone_no].reset_index(drop=True)
         print("Zone number: " + str(zone_no) + ". Number of transactions: " + str(len(df_zone)))
 
-        OLS, OLS_count = get_OLS_and_count(df_zone, t0, t1)
+        LORSI, count = get_LORSI_and_count(df_zone, t0, t1)
 
-        zone_OLS[zone_no] = OLS["pred"]
-        zone_counts[zone_no] = OLS_count["count"]
+        zone_LORSI[zone_no] = LORSI
+        zone_counts[zone_no] = count
 
     # Substitute NaN with 0
-    zone_OLS.fillna(0, inplace=True)
+    zone_LORSI.fillna(0, inplace=True)
     zone_counts.fillna(0, inplace=True)
 
     # Convert to int
     zone_counts = zone_counts.astype(int)
 
     # Normalize zone_OLS to start at 0
-    zone_OLS = zone_OLS - zone_OLS.iloc[0]
+    zone_LORSI = zone_LORSI - zone_LORSI.iloc[0]
 
-    return zone_OLS, zone_counts
+    return zone_LORSI, zone_counts
 
 
 
-def compute_zone_OLS_weighted(OLS_z, OLS_z_count, zones_neighbors):
+def compute_zone_LORSI_weighted(OLS_z, OLS_z_count, zones_neighbors):
     """
     Compute a volume-weighted OLS for all zones in OLS_z.
     Each zone is weighted by the number of transactions in the zone itself and its neighboring zones.

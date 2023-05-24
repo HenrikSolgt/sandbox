@@ -3,7 +3,7 @@ import pandas as pd
 import geopandas as gpd
 
 
-def get_zone_geometry(div_num = 100):
+def get_zone_geometry(zone_div=100):
     """
         Loads Basisdata Grunnkrets geometry and returns the geometry of the zones. The zones are defined as the first two digits of the grunnkretsnumber.
         Returns:
@@ -17,7 +17,7 @@ def get_zone_geometry(div_num = 100):
     grunnkretser["grunnkretsnummer"] = grunnkretser["grunnkretsnummer"].apply(lambda x: int(x[-4:]))
 
     # The zones are the first two digits of the grunnkretsnumber
-    grunnkretser["zone"] = grunnkretser["grunnkretsnummer"] // div_num
+    grunnkretser["zone"] = grunnkretser["grunnkretsnummer"] // zone_div
 
     # Dissolve by zone and merge grunnkretser constituting the same zone, but keep zone as a column
     zones = grunnkretser.dissolve(by = 'zone', as_index = False)[["zone", "geometry"]]
@@ -63,3 +63,13 @@ def get_zone_controid_distances(zones):
 
     return dist_matrix
     
+
+def get_zones_and_neighbors(zone_div=100):
+    """
+    Get the zones and their neighbors.
+    """
+    zones_geometry = get_zone_geometry(zone_div)
+    zones_arr = zones_geometry["zone"]
+    zones_neighbors = get_zone_neighbors(zones_geometry)
+
+    return zones_arr, zones_neighbors
