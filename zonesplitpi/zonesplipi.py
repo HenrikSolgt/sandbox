@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 
 from zone_analysis import get_zone_geometry, get_zone_neighbors
-from create_OLS import load_MT_data, score_RSI_split, get_OLS_and_count, get_zone_OLS_and_count, compute_zone_OLS_weighted
+from compute_LORSI_for_zones import load_MT_data, score_RSI_split, get_OLS_and_count, get_zone_OLS_and_count, compute_zone_OLS_weighted
 
 # Remove warning
 pd.options.mode.chained_assignment = None  # default='warn'
