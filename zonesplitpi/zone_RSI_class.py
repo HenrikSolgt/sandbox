@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 from zone_analysis import get_zones_and_neighbors
-from compute_LORSI_for_zones import load_MT_data, score_RSI_split, get_LORSI_and_count, get_LORSI_and_count_for_zones, compute_zone_LORSI_weighted
+from compute_LORSI_for_zones import load_MT_data, get_LORSI_and_count, get_LORSI_and_count_for_zones
+
 
 # Remove warning
 pd.options.mode.chained_assignment = None  # default='warn'
@@ -371,8 +372,6 @@ RSI_z_m = zone_RSI_m_f.copy()  # Filtered in space
 
 LORSI_z = RSI_z_m.get_LORSI_df()
 count_z = RSI_z_m.get_count_df()
-
-for zone in 
 
 
 
