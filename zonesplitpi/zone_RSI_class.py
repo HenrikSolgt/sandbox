@@ -291,6 +291,15 @@ class zone_RSI_class:
         return df_ddp
 
 
+    def add_scatter(self, fig, row=1, col=1, zone=0, mode="lines", desc=""):
+        # Add a scatter plot of the LORSI values
+        df = self.get_LORSI_df()
+        name = "Period: " + self.period + ", Zone: " + str(zone)
+        if desc != "":
+            name += ", " + desc
+        return fig.add_trace(go.Scatter(x=df.index, y=df[zone], mode=mode, name=name), row=row, col=col)
+
+
 
 
 
@@ -317,44 +326,33 @@ zone_RSI_m = zone_RSI_m.insert_missing_zones(zones_arr)
 # Create all filtered versions
 all_RSI_w_f = all_RSI_w.filter_LORSI_in_time(window_size=5)
 zone_RSI_m_f = zone_RSI_m.filter_LORSI_in_space(zones_neighbors)
-zone_RSI_m_f2 = zone_RSI_m_f.filter_LORSI_in_time(window_size=5)
 
-# Interpolated to weekly
-zone_RSI_w = zone_RSI_m.convert_to_period("weekly", kind="linear")
-zone_RSI_w_f2 = zone_RSI_m_f2.convert_to_period("weekly", kind="linear")
+# 
+all_RSI_m = all_RSI_w_f.convert_to_period("monthly", kind="linear")
+zone_RSI_w = zone_RSI_m_f.convert_to_period("weekly", kind="linear")
 
 
 # Set all to zero mean for plotting
+all_RSI_m.set_LORSI_to_zero_mean()
 all_RSI_w.set_LORSI_to_zero_mean()
 all_RSI_w_f.set_LORSI_to_zero_mean()
 zone_RSI_m.set_LORSI_to_zero_mean()
 zone_RSI_m_f.set_LORSI_to_zero_mean()
-zone_RSI_m_f2.set_LORSI_to_zero_mean()
 zone_RSI_w.set_LORSI_to_zero_mean()
-zone_RSI_w_f2.set_LORSI_to_zero_mean()
-
-# Extract data as dataframes
-all_w = all_RSI_w.get_LORSI_df()
-all_w_f = all_RSI_w_f.get_LORSI_df()
-zone_m = zone_RSI_m.get_LORSI_df()
-zone_m_f = zone_RSI_m_f.get_LORSI_df()
-zone_m_f2 = zone_RSI_m_f2.get_LORSI_df()
-zone_w = zone_RSI_w.get_LORSI_df()
-zone_w_f2 = zone_RSI_w_f2.get_LORSI_df()
 
 
 """
 LORSI
 """
 fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-fig = fig.add_trace(go.Scatter(x=all_w.index, y=all_w[0], mode="lines", name="Weekly: All"), row=1, col=1)
-fig = fig.add_trace(go.Scatter(x=all_w_f.index, y=all_w_f[0], mode="lines", name="Weekly: All, filtered in time"), row=1, col=1)
+fig = all_RSI_w.add_scatter(fig)
+fig = all_RSI_w_f.add_scatter(fig, desc="Filtered in time")
+fig = all_RSI_m.add_scatter(fig, desc="Interpolated from weekly")
+
 zones_arr2 = [2, 11, 12, 42, 44]
 for zone in zones_arr2:
-    fig = fig.add_trace(go.Scatter(x=zone_m_f2.index, y=zone_m_f2[zone], mode="lines", name="Zone, Monthly F2: " + str(zone)), row=1, col=1)
-    fig = fig.add_trace(go.Scatter(x=zone_w_f2.index, y=zone_w_f2[zone], mode="lines", name="Zone, Weekly F2: " + str(zone)), row=1, col=1)
-    # fig = fig.add_trace(go.Scatter(x=zone_m_f.index, y=zone_m_f[zone], mode="lines", name="Zone, Monthly, filtered in space: " + str(zone)), row=1, col=1)
-    # fig = fig.add_trace(go.Scatter(x=zone_m_f2.index, y=zone_m_f2[zone], mode="lines", name="Zone, Monthly, filtered in space and time: " + str(zone)), row=1, col=1)
+    fig = zone_RSI_m_f.add_scatter(fig, zone=zone, desc="Filtered in space")
+    fig = zone_RSI_w.add_scatter(fig, zone=zone, desc="Resampled from monthly")
 
 fig.show()
 
@@ -368,11 +366,14 @@ Combining the LORSI class instances with LPF and HPF
 RSI_a_w = all_RSI_w_f.copy()  # Filtered in time
 RSI_z_m = zone_RSI_m_f.copy()  # Filtered in space
 
+"""
+- Resample 
+"""
+
+
 # We will now filter RSI_z_m in time, and do a reverse filtering on RSI_a_w
 
 LORSI_z = RSI_z_m.get_LORSI_df()
 count_z = RSI_z_m.get_count_df()
-
-
 
 

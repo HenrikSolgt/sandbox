@@ -56,9 +56,6 @@ def get_LORSI_and_count(df, t0, t1):
         # Split LORSI_res into LORSI and count dataframes
         LORSI = LORSI_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
         count = LORSI_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
-
-        # Normalize to start at 0
-        LORSI = LORSI - LORSI.iloc[0]  
     else:
         LORSI = pd.DataFrame(index=T_arr, columns=["pred"])
         count = pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
@@ -106,9 +103,6 @@ def get_LORSI_and_count_for_zones(df, t0, t1):
 
     # Convert to int
     zone_counts = zone_counts.astype(int)
-
-    # Normalize zone_OLS to start at 0
-    zone_LORSI = zone_LORSI - zone_LORSI.iloc[0]
 
     return zone_LORSI, zone_counts
 
