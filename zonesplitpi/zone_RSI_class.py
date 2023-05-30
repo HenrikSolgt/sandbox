@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 
 # Solgt packages
-from solgt.priceindex.repeatsales import get_RSI, add_derived_MT_columns, get_repeated_idx, get_RS_idx_lines, get_df_ttp_from_RS_idx, create_and_solve_OLS_problem
+from solgt.priceindex.repeatsales import get_RSI, add_derived_MT_columns, get_repeated_idx, get_RS_idx_lines, get_df_ttp_from_RS_idx, create_and_solve_LORSI_OLS_problem
+
 from solgt.timeseries.date_t_converter import convert_date_to_t, convert_t_to_date
 from solgt.timeseries.filter import smooth_w
 from solgt.db.MT_parquet import get_parquet_as_df, update_MT_parquet_file
@@ -16,60 +17,148 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 from zone_analysis import get_zones_and_neighbors
-from compute_LORSI_for_zones import load_MT_data, get_LORSI_and_count, get_LORSI_and_count_for_zones
 
 
 # Remove warning
 pd.options.mode.chained_assignment = None  # default='warn'
 
-zone_div = 100
-
-gr_krets = "grunnkrets_id"
-# period = "quarterly"
-period = "monthly"
-
+# Constants
 key_col = "unitkey"
 date_col = "sold_date"
 price_col = "price_inc_debt"
+gr_krets = "grunnkrets_id"
 
 
-def create_lpf_matrix_from_weights(weights):
+# Get LORSI and count for the whole region
+def get_LORSI_and_count(df, t0, t1):
     """
-    Create a low pass filter matrix from a list of weights.
+    Get Log-RSI (LORSI) and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
+    All raw transactions from df is used. The filtering is performed after the transactions have been matched.
+    Inputs:
+        - df: DataFrame with columns "id", "y", "t"
+        - t0: Start time
+        - t1: End time
     """
-    N = len(weights)
-    M_int = np.zeros((N, N))
-    for i in range(N):
-        M_int[i, i] = weights.iloc[i]
-        for j in [i-1, i+1]:
-            if 0 <= j < N:
-                M_int[i, j] = weights.iloc[j]
 
-    # Divide each row by the sum of the row
-    for i in range(N):
-        M_int[i, :] = M_int[i, :] / np.sum(M_int[i, :])
+    T_arr = np.arange(t0, t1)
 
-    return M_int
+    # Get repeated sales index and create df_ttp
+    R_idx = get_repeated_idx(df)
+    df_ttp = get_df_ttp_from_RS_idx(df, R_idx)
+
+    if (len(df_ttp) > 0):
+        LORSI_res = create_and_solve_LORSI_OLS_problem(df_ttp)
+        LORSI_res = LORSI_res[(LORSI_res["t"] >= t0) & (LORSI_res["t"] < t1)].reset_index(drop=True)
+
+        # Split LORSI_res into LORSI and count dataframes
+        LORSI = LORSI_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
+        count = LORSI_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
+    else:
+        LORSI = pd.DataFrame(index=T_arr, columns=["pred"])
+        count = pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
+
+    # Remove index names
+    LORSI.index.name = None
+    count.index.name = None
+
+    return LORSI, count
+
+
+# Create LORSI and count for all zones
+def get_LORSI_and_count_for_zones(df, t0, t1):
+    """
+    Get LORSI and count for all matched transactions in DataFrame df, for the time period [t0, t1).
+    All raw transactions from df are used. The filtering on time period [t0, t1) is performed after the transactions have been matched.
+    Note that only the zones occuring in df are included in the output.
+    Inputs:
+        - df: DataFrame with columns "unitkey", "price_inc_debt", "zone", "t"
+        - t0: Start time
+        - t1: End time
+    """
+
+    zones_arr = df["zone"].unique()
+    zones_arr.sort()
+
+    T_arr = np.arange(t0, t1)
+    # Create empty dataframes
+    zone_LORSI = pd.DataFrame(index=T_arr, columns=zones_arr)
+    zone_counts = pd.DataFrame(index=T_arr, columns=zones_arr)
+
+    for zone_no in zones_arr:
+        # Filter the MT data for the current zone
+        df_zone = df[df["zone"] == zone_no].reset_index(drop=True)
+        print("Zone number: " + str(zone_no) + ". Number of transactions: " + str(len(df_zone)))
+
+        LORSI, count = get_LORSI_and_count(df_zone, t0, t1)
+
+        zone_LORSI[zone_no] = LORSI
+        zone_counts[zone_no] = count
+
+    # Substitute NaN with 0
+    zone_LORSI.fillna(0, inplace=True)
+    zone_counts.fillna(0, inplace=True)
+
+    # Convert to int
+    zone_counts = zone_counts.astype(int)
+
+    return zone_LORSI, zone_counts
+
+
+def default_zone_func(df_MT):
+    """
+    Default zone function. Returns a all-zero numpy array of same length as df_MT.
+    """
+    return np.zeros(len(df_MT))
+
+
+def zone_func_1(df_MT):
+    return df_MT[gr_krets] // 100
+
+df_MT["zone"] = zone_func_1(df_MT)
+
+
+def fill_in_nan_zones(df_MT):
+    # Find entries where df_MT["zone"] is NaN
+    idx_nan = df_MT[df_MT["zone"].isna()].index
+
+    for idx in idx_nan:
+        sublist = df_MT[["lng", "lat"]].drop(idx)
+        
+        # Find the nearest non-nan neighbor in terms of lng and lat distance
+        distance = np.sqrt((sublist["lng"] - df_MT["lng"][idx]) ** 2 + (sublist["lat"] - df_MT["lat"][idx]) ** 2)
+
+        # Find the index of the nearest neighbor
+        idx_nearest = distance.idxmin()
+
+        
 
 
 
 
-class zone_RSI_class:
-    def __init__(self, df_MT=None, date0=None, date1=None, period="monthly", zone_div=int(1e9)):
+
+
+class LORSI_zone_class:
+
+    def __init__(self, df_MT=None, date0=None, date1=None, period="monthly", zone_func=default_zone_func):
         """
-        Create a zone_RSI_class object. This object contains the LORSI for each zone, and the count of sales for each zone. 
+        Create a zone_LORSI_class object. This object contains the LORSI for each zone, and the count of sales for each zone. 
         The matched transactions are loaded from df_MT, and only data between date0 and date1 is used.
-        The default value of zone_div is 1e9, resulting in a single zone: hence all transactions are treated as a single zone.
+        The default value of zone_func is a function returning all zeros, producing in a single zone: hence all transactions are treated to belong to the same zone.
         """
         if df_MT is not None:
             self.date0 = date0
             self.date1 = date1
             self.period = period
-            self.zone_div = zone_div 
+            self.zone_func = zone_func
+
+            # Fill in zones
+            # Handle the case when df_MT["zone"] now contains some Nan values. Fill in these by using the zone of the nearest non-nan neighbor.
+            # Will work poorly if the relative numer of NaNs is large
+            df_MT["zone"] = zone_func(df_MT)
+            df_MT = fill_in_nan_zones(df_MT)
 
             df_MT = add_derived_MT_columns(df_MT, period, date0)
-            df_MT["zone"] = df_MT[gr_krets] // zone_div
-            
+
             [self.t0, self.t1] = convert_date_to_t([date0, date1], period)
             LORSI, count = get_LORSI_and_count_for_zones(df_MT, self.t0, self.t1) # Create OLS and count for the zones
             self.LORSI = LORSI.values
@@ -80,18 +169,18 @@ class zone_RSI_class:
             self.LORSI = None
             self.count = None
             self.zones = None
-            self.zone_div = None
+            self.zone_func = zone_func
             self.t = None
 
 
     def copy(self):
         # Create a copy of the object
-        res = zone_RSI_class()
+        res = LORSI_zone_class()
         res.LORSI = self.LORSI.copy()
         res.count = self.count.copy()
         res.zones = self.zones.copy()
         res.t = self.t.copy()
-        res.zone_div = self.zone_div
+        res.zone_func = self.zone_func
         res.date0 = self.date0
         res.date1 = self.date1
         res.period = self.period
@@ -236,6 +325,9 @@ class zone_RSI_class:
             LORSI_w[zone] = weighted_sum / count_sum
             count_w[zone] = count_sum.astype(int)
 
+            # Insert 0 for nan in case of division by 0
+            LORSI_w[zone] = LORSI_w[zone].fillna(0)
+
         res = self.copy()
         res.LORSI = LORSI_w.values
         res.count = count_w.values
@@ -291,7 +383,42 @@ class zone_RSI_class:
         return df_ddp
 
 
-    def add_scatter(self, fig, row=1, col=1, zone=0, mode="lines", desc=""):
+    def add_HPF_part_from_LORSI(self, other, window_size=5):
+        """
+        Does a count-weighted LPF-filtering of self, and adds the HPF part of the LORSI instance other to it.
+        other does not need to be sampled at the same dates as self, as a linear interpolation is done.
+        Inputs:
+            - other: LORSI_class instance. Only the first zone is used. The HPF part of this zone is added to every LORSI zone of self.
+            - window_size: int. Size of the window for the LPF filtering.
+
+        NOTE: The information in count does not change, only the LORSI values.
+        """
+        
+        # Convert other to the same period as self
+        other = other.convert_to_period(self.period)
+        
+        # Extract the LORSI and count dataframes
+        x = other.get_LORSI_df()
+        y = self.get_LORSI_df()
+        y_c = self.get_count_df()
+
+        # Create LPF as a dataframe of size y
+        LPF_y = pd.DataFrame(index=y.index, columns=y.columns)
+        HPF_x = pd.DataFrame(index=y.index, columns=y.columns)
+
+        w_b = window_size // 2
+        for zone in y.columns:
+            weights = y_c[zone]
+            LPF_y[zone] = smooth_w(y[zone], weights, w_b)
+            HPF_x[zone] = x[0] - smooth_w(x[0], weights, w_b)
+
+        res = self.copy()
+        res.LORSI = LPF_y + HPF_x
+
+        return res
+
+
+    def add_scatter(self, fig, desc="", row=1, col=1, zone=0, mode="lines"):
         # Add a scatter plot of the LORSI values
         df = self.get_LORSI_df()
         name = "Period: " + self.period + ", Zone: " + str(zone)
@@ -313,67 +440,55 @@ MAIN PROGRAM
 date0 = datetime.date(2014, 1, 6)
 date1 = datetime.date(2022, 1, 1)
 
-df_MT = load_MT_data()
+
+df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
+df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
+df_MT[gr_krets] = df_MT[gr_krets]
 
 # Create the LORSI class instances for Oslo weekly, and zones monthly
-all_RSI_w = zone_RSI_class(df_MT, date0, date1, "weekly")
-zone_RSI_m = zone_RSI_class(df_MT, date0, date1, "monthly", zone_div=100)
+# These are the raw datas, without any filtering
+all_LORSI_w = LORSI_zone_class(df_MT, date0, date1, "weekly")
+zone_LORSI_m = LORSI_zone_class(df_MT, date0, date1, "monthly", zone_div=100)
 
-# Augment with missing zones
+# Augment the zone RSI with_ with missing zones
 zones_arr, zones_neighbors = get_zones_and_neighbors(zone_div=100)
-zone_RSI_m = zone_RSI_m.insert_missing_zones(zones_arr)
+zone_LORSI_m = zone_LORSI_m.insert_missing_zones(zones_arr)
 
-# Create all filtered versions
-all_RSI_w_f = all_RSI_w.filter_LORSI_in_time(window_size=5)
-zone_RSI_m_f = zone_RSI_m.filter_LORSI_in_space(zones_neighbors)
+# Filter zone in space
+zone_LORSI_m_s = zone_LORSI_m.filter_LORSI_in_space(zones_neighbors)
 
-# 
-all_RSI_m = all_RSI_w_f.convert_to_period("monthly", kind="linear")
-zone_RSI_w = zone_RSI_m_f.convert_to_period("weekly", kind="linear")
+# Resample zone LORSI to weekly
+zone_LORSI_w_s = zone_LORSI_m_s.convert_to_period("weekly", kind="linear")
 
+# Filter all of Oslo in time, with a 5 week window size
+all_LORSI_w_f = all_LORSI_w.filter_LORSI_in_time(window_size=5)
 
-# Set all to zero mean for plotting
-all_RSI_m.set_LORSI_to_zero_mean()
-all_RSI_w.set_LORSI_to_zero_mean()
-all_RSI_w_f.set_LORSI_to_zero_mean()
-zone_RSI_m.set_LORSI_to_zero_mean()
-zone_RSI_m_f.set_LORSI_to_zero_mean()
-zone_RSI_w.set_LORSI_to_zero_mean()
+# Combine x = all_LORSI_w_f and y = zone_LORSI_w_s into one dataframe, with the LPF component of y and HPF component of x
+zone_comb_LORSI = zone_LORSI_w_s.add_HPF_part_from_LORSI(all_LORSI_w_f, window_size=13)  # 6 weeks is used, as (2*6+1) weeks is approximately 3 months
+
+# Shift to zero mean
+all_LORSI_w.set_LORSI_to_zero_mean()
+all_LORSI_w_f.set_LORSI_to_zero_mean()
+zone_LORSI_m.set_LORSI_to_zero_mean()
+zone_LORSI_m_s.set_LORSI_to_zero_mean()
+zone_LORSI_w_s.set_LORSI_to_zero_mean()
+zone_comb_LORSI.set_LORSI_to_zero_mean()
+
 
 
 """
 LORSI
 """
 fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-fig = all_RSI_w.add_scatter(fig)
-fig = all_RSI_w_f.add_scatter(fig, desc="Filtered in time")
-fig = all_RSI_m.add_scatter(fig, desc="Interpolated from weekly")
+fig = all_LORSI_w.add_scatter(fig)
+fig = all_LORSI_w_f.add_scatter(fig, desc="Filtered in time")
 
 zones_arr2 = [2, 11, 12, 42, 44]
 for zone in zones_arr2:
-    fig = zone_RSI_m_f.add_scatter(fig, zone=zone, desc="Filtered in space")
-    fig = zone_RSI_w.add_scatter(fig, zone=zone, desc="Resampled from monthly")
-
+    fig = zone_LORSI_m.add_scatter(fig, zone=zone, desc="Raw monthly zone data")
+    fig = zone_LORSI_m_s.add_scatter(fig, zone=zone, desc="Spatially filtered")
+    fig = zone_LORSI_w_s.add_scatter(fig, zone=zone, desc="Resampled from spatally filtered")
+    fig = zone_comb_LORSI.add_scatter(fig, zone=zone, desc="LFP + HPF from all_LORSI_w_f")
+    
 fig.show()
-
-
-
-
-"""
-Combining the LORSI class instances with LPF and HPF
-"""
-# Make copies of the LORSI class instances, complete with filtering
-RSI_a_w = all_RSI_w_f.copy()  # Filtered in time
-RSI_z_m = zone_RSI_m_f.copy()  # Filtered in space
-
-"""
-- Resample 
-"""
-
-
-# We will now filter RSI_z_m in time, and do a reverse filtering on RSI_a_w
-
-LORSI_z = RSI_z_m.get_LORSI_df()
-count_z = RSI_z_m.get_count_df()
-
 
