@@ -5,7 +5,6 @@ import numpy as np
 
 # Solgt packages
 from solgt.priceindex.repeatsales import get_RSI, add_derived_MT_columns, get_repeated_idx, get_RS_idx_lines, get_df_ttp_from_RS_idx, create_and_solve_LORSI_OLS_problem
-
 from solgt.timeseries.date_t_converter import convert_date_to_t, convert_t_to_date
 from solgt.timeseries.filter import smooth_w
 from solgt.db.MT_parquet import get_parquet_as_df, update_MT_parquet_file
@@ -27,6 +26,7 @@ key_col = "unitkey"
 date_col = "sold_date"
 price_col = "price_inc_debt"
 gr_krets = "grunnkrets_id"
+postcode = "postcode"
 
 
 # Get LORSI and count for the whole region
@@ -111,30 +111,19 @@ def default_zone_func(df_MT):
     return np.zeros(len(df_MT))
 
 
-def zone_func_1(df_MT):
+def zone_func_div100(df_MT):
     return df_MT[gr_krets] // 100
-
-df_MT["zone"] = zone_func_1(df_MT)
 
 
 def fill_in_nan_zones(df_MT):
     # Find entries where df_MT["zone"] is NaN
     idx_nan = df_MT[df_MT["zone"].isna()].index
+    sublist = df_MT[[postcode, "zone"]].drop(idx_nan)
 
-    for idx in idx_nan:
-        sublist = df_MT[["lng", "lat"]].drop(idx)
-        
-        # Find the nearest non-nan neighbor in terms of lng and lat distance
-        distance = np.sqrt((sublist["lng"] - df_MT["lng"][idx]) ** 2 + (sublist["lat"] - df_MT["lat"][idx]) ** 2)
+    # Set the idx_nan entries to the most common zone for the given postcode
+    df_MT.loc[idx_nan, "zone"] = df_MT.loc[idx_nan, postcode].map(sublist.groupby(postcode)["zone"].agg(lambda x: x.value_counts().index[0]))
 
-        # Find the index of the nearest neighbor
-        idx_nearest = distance.idxmin()
-
-        
-
-
-
-
+    return df_MT
 
 
 class LORSI_zone_class:
@@ -151,10 +140,9 @@ class LORSI_zone_class:
             self.period = period
             self.zone_func = zone_func
 
-            # Fill in zones
-            # Handle the case when df_MT["zone"] now contains some Nan values. Fill in these by using the zone of the nearest non-nan neighbor.
-            # Will work poorly if the relative numer of NaNs is large
+            # Fill in the zone column using the zone_func
             df_MT["zone"] = zone_func(df_MT)
+            # Handle the case when df_MT["zone"] now contains some Nan values. Fill in these by using the most common zone for the matching postcode.
             df_MT = fill_in_nan_zones(df_MT)
 
             df_MT = add_derived_MT_columns(df_MT, period, date0)
@@ -345,10 +333,17 @@ class LORSI_zone_class:
         - df_MT_test: Dataframe with matched transactions. Must contain the following columns: "unitkey", "sold_date", "price_inc_debt"
         """
 
-        RS_idx_test = get_repeated_idx(df_MT_test)
-        df_MT_test = add_derived_MT_columns(df_MT_test)
-        df_MT_test["zone"] = df_MT_test[gr_krets] // self.zone_div
+        # Fill in the zone column using the zone_func
+        df_MT_test["zone"] = self.zone_func(df_MT_test)
+        # Handle the case when df_MT_test["zone"] now contains some Nan values. Fill in these by using the most common zone for the matching postcode.
+        df_MT_test = fill_in_nan_zones(df_MT_test)
 
+        # Add the derived columns to the dataframe
+        df_MT_test = add_derived_MT_columns(df_MT_test)
+
+        # Get the index of the repeated sales
+        RS_idx_test = get_repeated_idx(df_MT_test)
+        
         df_ddp = pd.DataFrame()
         line0, line1 = get_RS_idx_lines(df_MT_test, RS_idx_test, [date_col, "y", "zone"])
         df_ddp["sold_date0"] = line0[date_col]
@@ -444,11 +439,12 @@ date1 = datetime.date(2022, 1, 1)
 df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
 df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
 df_MT[gr_krets] = df_MT[gr_krets]
+df_MT[postcode] = df_MT[postcode].astype(int)
 
 # Create the LORSI class instances for Oslo weekly, and zones monthly
 # These are the raw datas, without any filtering
 all_LORSI_w = LORSI_zone_class(df_MT, date0, date1, "weekly")
-zone_LORSI_m = LORSI_zone_class(df_MT, date0, date1, "monthly", zone_div=100)
+zone_LORSI_m = LORSI_zone_class(df_MT, date0, date1, "monthly", zone_func=zone_func_div100)
 
 # Augment the zone RSI with_ with missing zones
 zones_arr, zones_neighbors = get_zones_and_neighbors(zone_div=100)
@@ -476,12 +472,23 @@ zone_comb_LORSI.set_LORSI_to_zero_mean()
 
 
 
+df_MT_test = df_MT.copy()
+all_LORSI_w.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+all_LORSI_w_f.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+zone_LORSI_m.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+zone_LORSI_m_s.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+zone_LORSI_w_s.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+zone_comb_LORSI.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+
+
+
+
 """
 LORSI
 """
 fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-fig = all_LORSI_w.add_scatter(fig)
-fig = all_LORSI_w_f.add_scatter(fig, desc="Filtered in time")
+fig = all_LORSI_w.add_scatter(fig, mode="markers")
+fig = all_LORSI_w_f.add_scatter(fig, desc="Filtered in time", mode="markers")
 
 zones_arr2 = [2, 11, 12, 42, 44]
 for zone in zones_arr2:
