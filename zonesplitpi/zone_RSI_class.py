@@ -29,41 +29,6 @@ gr_krets = "grunnkrets_id"
 postcode = "postcode"
 
 
-# Get LORSI and count for the whole region
-def get_LORSI_and_count(df, t0, t1):
-    """
-    Get Log-RSI (LORSI) and count for a all matched transactions in DataFrame df, for the time period [t0, t1).
-    All raw transactions from df is used. The filtering is performed after the transactions have been matched.
-    Inputs:
-        - df: DataFrame with columns "id", "y", "t"
-        - t0: Start time
-        - t1: End time
-    """
-
-    T_arr = np.arange(t0, t1)
-
-    # Get repeated sales index and create df_ttp
-    R_idx = get_repeated_idx(df)
-    df_ttp = get_df_ttp_from_RS_idx(df, R_idx)
-
-    if (len(df_ttp) > 0):
-        LORSI_res = create_and_solve_LORSI_OLS_problem(df_ttp)
-        LORSI_res = LORSI_res[(LORSI_res["t"] >= t0) & (LORSI_res["t"] < t1)].reset_index(drop=True)
-
-        # Split LORSI_res into LORSI and count dataframes
-        LORSI = LORSI_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
-        count = LORSI_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
-    else:
-        LORSI = pd.DataFrame(index=T_arr, columns=["pred"])
-        count = pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
-
-    # Remove index names
-    LORSI.index.name = None
-    count.index.name = None
-
-    return LORSI, count
-
-
 # Create LORSI and count for all zones
 def get_LORSI_and_count_for_zones(df, t0, t1):
     """
@@ -89,7 +54,24 @@ def get_LORSI_and_count_for_zones(df, t0, t1):
         df_zone = df[df["zone"] == zone_no].reset_index(drop=True)
         print("Zone number: " + str(zone_no) + ". Number of transactions: " + str(len(df_zone)))
 
-        LORSI, count = get_LORSI_and_count(df_zone, t0, t1)
+        # Get repeated sales index and create df_ttp
+        RS_idx = get_repeated_idx(df_zone)
+        df_ttp = get_df_ttp_from_RS_idx(df_zone, RS_idx)
+
+        if (len(df_ttp) > 0):
+            LORSI_res = create_and_solve_LORSI_OLS_problem(df_ttp)
+            LORSI_res = LORSI_res[(LORSI_res["t"] >= t0) & (LORSI_res["t"] < t1)].reset_index(drop=True)
+
+            # Split LORSI_res into LORSI and count dataframes
+            LORSI = LORSI_res[["t", "pred"]].set_index(["t"]).reindex(T_arr)
+            count = LORSI_res[["t", "count"]].set_index(["t"]).reindex(T_arr, fill_value=0)
+        else:
+            LORSI = pd.DataFrame(index=T_arr, columns=["pred"])
+            count = pd.DataFrame(index=T_arr, columns=["count"]).fillna(0)
+
+        # Remove index names
+        LORSI.index.name = None
+        count.index.name = None
 
         zone_LORSI[zone_no] = LORSI
         zone_counts[zone_no] = count
@@ -116,7 +98,7 @@ def zone_func_div100(df_MT):
 
 
 def fill_in_nan_zones(df_MT):
-    # Find entries where df_MT["zone"] is NaN
+    # Find entries where res["zone"] is NaN
     idx_nan = df_MT[df_MT["zone"].isna()].index
     sublist = df_MT[[postcode, "zone"]].drop(idx_nan)
 
@@ -141,14 +123,16 @@ class LORSI_zone_class:
             self.zone_func = zone_func
 
             # Fill in the zone column using the zone_func
-            df_MT["zone"] = zone_func(df_MT)
+            df = df_MT.copy()
+            df["zone"] = zone_func(df)
             # Handle the case when df_MT["zone"] now contains some Nan values. Fill in these by using the most common zone for the matching postcode.
-            df_MT = fill_in_nan_zones(df_MT)
+            df = fill_in_nan_zones(df)
 
-            df_MT = add_derived_MT_columns(df_MT, period, date0)
+            # Add the columns derived from the matched transactions
+            df = add_derived_MT_columns(df, period, date0)
 
             [self.t0, self.t1] = convert_date_to_t([date0, date1], period)
-            LORSI, count = get_LORSI_and_count_for_zones(df_MT, self.t0, self.t1) # Create OLS and count for the zones
+            LORSI, count = get_LORSI_and_count_for_zones(df, self.t0, self.t1) # Create OLS and count for the zones
             self.LORSI = LORSI.values
             self.count = count.values
             self.zones = LORSI.columns.values
@@ -333,19 +317,21 @@ class LORSI_zone_class:
         - df_MT_test: Dataframe with matched transactions. Must contain the following columns: "unitkey", "sold_date", "price_inc_debt"
         """
 
+        df = df_MT_test.copy()
+
         # Fill in the zone column using the zone_func
-        df_MT_test["zone"] = self.zone_func(df_MT_test)
+        df["zone"] = self.zone_func(df)
         # Handle the case when df_MT_test["zone"] now contains some Nan values. Fill in these by using the most common zone for the matching postcode.
-        df_MT_test = fill_in_nan_zones(df_MT_test)
+        df_ddp_zone = fill_in_nan_zones(df)
 
         # Add the derived columns to the dataframe
-        df_MT_test = add_derived_MT_columns(df_MT_test)
+        df = add_derived_MT_columns(df, self.period, self.date0)
 
         # Get the index of the repeated sales
-        RS_idx_test = get_repeated_idx(df_MT_test)
+        RS_idx_test = get_repeated_idx(df)
         
         df_ddp = pd.DataFrame()
-        line0, line1 = get_RS_idx_lines(df_MT_test, RS_idx_test, [date_col, "y", "zone"])
+        line0, line1 = get_RS_idx_lines(df, RS_idx_test, [date_col, "y", "zone"])
         df_ddp["sold_date0"] = line0[date_col]
         df_ddp["sold_date1"] = line1[date_col]
         df_ddp["dp"] = line1["y"] - line0["y"]
@@ -425,8 +411,6 @@ class LORSI_zone_class:
 
 
 
-
-
 """
 MAIN PROGRAM
 """
@@ -440,6 +424,9 @@ df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
 df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
 df_MT[gr_krets] = df_MT[gr_krets]
 df_MT[postcode] = df_MT[postcode].astype(int)
+
+# Split df_MT into train and test using train test split
+
 
 # Create the LORSI class instances for Oslo weekly, and zones monthly
 # These are the raw datas, without any filtering
