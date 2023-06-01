@@ -15,11 +15,13 @@ entries2 = [{"date": dates[i].strftime("%Y-%m-%d"), "price": prices[i]} for i in
 res = {"entries: ": entries2}
 
 
-d1 = datetime.date(2019, 1, 1)
+d1 = datetime.date(2008, 1, 1)
 d2 = datetime.datetime(2019, 1, 2).replace(tzinfo=pytz.utc)
 
 # Initialize d5 as a pd Series of datetime.datetime
-d5 = pd.Series([d2, d2])
+d5 = pd.Series([d1, d2])
 
+
+pi.date
 
 pi.interpolate(d5)

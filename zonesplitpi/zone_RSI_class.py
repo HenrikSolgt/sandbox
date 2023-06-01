@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 
 import matplotlib.pyplot as plt
 from scipy import interpolate
+from sklearn.model_selection import train_test_split
 
 from zone_analysis import get_zones_and_neighbors
 
@@ -97,13 +98,21 @@ def zone_func_div100(df_MT):
     return df_MT[gr_krets] // 100
 
 
-def fill_in_nan_zones(df_MT):
-    # Find entries where res["zone"] is NaN
-    idx_nan = df_MT[df_MT["zone"].isna()].index
-    sublist = df_MT[[postcode, "zone"]].drop(idx_nan)
+def fill_in_nan_zones(df_MT, df_MT_all):
+    df_all = df_MT_all.copy()
+    res = df_MT.copy()
 
-    # Set the idx_nan entries to the most common zone for the given postcode
-    df_MT.loc[idx_nan, "zone"] = df_MT.loc[idx_nan, postcode].map(sublist.groupby(postcode)["zone"].agg(lambda x: x.value_counts().index[0]))
+    df_all["zone"] = zone_LORSI_m.zone_func(df_all)
+    res["zone"] = zone_LORSI_m.zone_func(res)
+
+    all_idx_nan = df_all[df_all["zone"].isna()].index
+    res_idx_nan = res[res["zone"].isna()].index
+
+    ok_entries = df_all.drop(all_idx_nan)
+    nan_entries = res.loc[res_idx_nan]
+
+    # We will now use ok_entries to fill in for the nan_entries 
+    res.loc[nan_entries.index, "zone"] = nan_entries["postcode"].map(ok_entries.groupby("postcode")["zone"].agg(lambda x: x.value_counts().index[0]))
 
     return df_MT
 
@@ -127,6 +136,8 @@ class LORSI_zone_class:
             df["zone"] = zone_func(df)
             # Handle the case when df_MT["zone"] now contains some Nan values. Fill in these by using the most common zone for the matching postcode.
             df = fill_in_nan_zones(df)
+            # TODO: Fix this: dropna should not be necessary
+            df = df.dropna(subset=["zone"])
 
             # Add the columns derived from the matched transactions
             df = add_derived_MT_columns(df, period, date0)
@@ -322,7 +333,9 @@ class LORSI_zone_class:
         # Fill in the zone column using the zone_func
         df["zone"] = self.zone_func(df)
         # Handle the case when df_MT_test["zone"] now contains some Nan values. Fill in these by using the most common zone for the matching postcode.
-        df_ddp_zone = fill_in_nan_zones(df)
+        df = fill_in_nan_zones(df)
+        # TODO: Fix this: dropna should not be necessary
+        df = df.dropna(subset=["zone"])
 
         # Add the derived columns to the dataframe
         df = add_derived_MT_columns(df, self.period, self.date0)
@@ -416,7 +429,7 @@ MAIN PROGRAM
 """
 
 # Define time period
-date0 = datetime.date(2014, 1, 6)
+date0 = datetime.date(2012, 1, 1)
 date1 = datetime.date(2022, 1, 1)
 
 
@@ -425,13 +438,23 @@ df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month,
 df_MT[gr_krets] = df_MT[gr_krets]
 df_MT[postcode] = df_MT[postcode].astype(int)
 
-# Split df_MT into train and test using train test split
+# Split df_MT into train and test sets, but only the repeated sales
+df_MT = add_derived_MT_columns(df_MT)
+RS_idx = get_repeated_idx(df_MT)
+RS_idx_train, RS_idx_test = train_test_split(RS_idx, test_size=0.2, random_state=42)
 
+# Let train_I be I0 and I1 in RS_idx_train
+I_train = pd.concat([RS_idx_train["I0"], RS_idx_train["I1"]]).drop_duplicates().sort_values().reset_index(drop=True)
+I_test = pd.concat([RS_idx_test["I0"], RS_idx_test["I1"]]).drop_duplicates().sort_values().reset_index(drop=True)
+
+# Extract indices
+df_MT_train = df_MT.loc[I_train].reset_index(drop=True)
+df_MT_test = df_MT.loc[I_test].reset_index(drop=True)
 
 # Create the LORSI class instances for Oslo weekly, and zones monthly
 # These are the raw datas, without any filtering
-all_LORSI_w = LORSI_zone_class(df_MT, date0, date1, "weekly")
-zone_LORSI_m = LORSI_zone_class(df_MT, date0, date1, "monthly", zone_func=zone_func_div100)
+all_LORSI_w = LORSI_zone_class(df_MT_train, date0, date1, "weekly")
+zone_LORSI_m = LORSI_zone_class(df_MT_train, date0, date1, "monthly", zone_func=zone_func_div100)
 
 # Augment the zone RSI with_ with missing zones
 zones_arr, zones_neighbors = get_zones_and_neighbors(zone_div=100)
@@ -439,9 +462,10 @@ zone_LORSI_m = zone_LORSI_m.insert_missing_zones(zones_arr)
 
 # Filter zone in space
 zone_LORSI_m_s = zone_LORSI_m.filter_LORSI_in_space(zones_neighbors)
+zone_LORSI_m_s2 = zone_LORSI_m_s.filter_LORSI_in_space(zones_neighbors)
 
 # Resample zone LORSI to weekly
-zone_LORSI_w_s = zone_LORSI_m_s.convert_to_period("weekly", kind="linear")
+zone_LORSI_w_s = zone_LORSI_m_s2.convert_to_period("weekly", kind="linear")
 
 # Filter all of Oslo in time, with a 5 week window size
 all_LORSI_w_f = all_LORSI_w.filter_LORSI_in_time(window_size=5)
@@ -454,16 +478,16 @@ all_LORSI_w.set_LORSI_to_zero_mean()
 all_LORSI_w_f.set_LORSI_to_zero_mean()
 zone_LORSI_m.set_LORSI_to_zero_mean()
 zone_LORSI_m_s.set_LORSI_to_zero_mean()
+zone_LORSI_m_s2.set_LORSI_to_zero_mean()
 zone_LORSI_w_s.set_LORSI_to_zero_mean()
 zone_comb_LORSI.set_LORSI_to_zero_mean()
 
 
-
-df_MT_test = df_MT.copy()
 all_LORSI_w.score_LORSI(df_MT_test)["dp_e"].abs().mean()
 all_LORSI_w_f.score_LORSI(df_MT_test)["dp_e"].abs().mean()
 zone_LORSI_m.score_LORSI(df_MT_test)["dp_e"].abs().mean()
 zone_LORSI_m_s.score_LORSI(df_MT_test)["dp_e"].abs().mean()
+zone_LORSI_m_s2.score_LORSI(df_MT_test)["dp_e"].abs().mean()
 zone_LORSI_w_s.score_LORSI(df_MT_test)["dp_e"].abs().mean()
 zone_comb_LORSI.score_LORSI(df_MT_test)["dp_e"].abs().mean()
 
@@ -486,3 +510,36 @@ for zone in zones_arr2:
     
 fig.show()
 
+
+
+
+## Fill in missing zones by using distance to nearest neighbor
+
+df = df_MT.copy()
+df["zone"] = zone_LORSI_m.zone_func(df)
+
+nan_idx = df[df["zone"].isna()].index
+df_nan = df.loc[nan_idx][["zone", "lng", "lat"]]
+
+# Can speed up by only looking only at same area_id
+
+
+
+
+
+"""
+df_MT_train2 = df_MT_train.copy()
+
+df_MT_train2["zone"] = zone_LORSI_m.zone_func(df_MT_train2)
+df_MT_train2["zone"].isna().sum()
+df_MT_train2 = fill_in_nan_zones(df_MT_train2)
+df_MT_train2["zone"].isna().sum()
+
+
+df_MT_test2 = df_MT_test.copy()
+df_MT_test2["zone"] = zone_LORSI_m.zone_func(df_MT_test2)
+df_MT_test2["zone"].isna().sum()
+df_MT_test2 = fill_in_nan_zones(df_MT_test2)
+df_MT_test2["zone"].isna().sum()
+
+"""
