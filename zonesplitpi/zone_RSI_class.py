@@ -192,7 +192,7 @@ class LORSI_zone_class:
     def get_count_df(self):
         # Returns the counts as a dataframe with dates as index and zones as columns
         return pd.DataFrame(self.count, index=self.get_dates(), columns=self.zones)
-        
+
 
     def insert_missing_zones(self, zones_arr):
         # Augments the stored zones with the missing zones in zones_arr
