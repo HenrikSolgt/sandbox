@@ -99,6 +99,7 @@ class LORSI_zone_class:
         res["zone"] = self.zone_func(res)
         res_idx_nan = res[res["zone"].isna()].index
 
+
         if self.src_MT is not None:
             src_MT = self.src_MT.copy()
             src_MT["zone"] = self.zone_func(src_MT)
@@ -130,6 +131,9 @@ class LORSI_zone_class:
             # Fill in the zone column using the zone_func
             df = df_MT.copy()
             df["zone"] = self.compute_zones(df)
+
+            # If any zones are NaN, remove them (should not be many)
+            df = df.dropna(subset=["zone"]).reset_index(drop=True)
 
             # Add the columns derived from the matched transactions
             df = add_derived_MT_columns(df, period, date0)
@@ -453,10 +457,16 @@ df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
 df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
 df_MT[postcode] = df_MT[postcode].astype(int)
 
+train_MT, test_MT = train_test_split_rep_sales(df_MT)
+
 
 # Create the LORSI classes
-all_LORSI_w = LORSI_zone_class(df_MT, date0, date1, "weekly")
-zone_LORSI_m = LORSI_zone_class(df_MT, date0, date1, "monthly", zone_func=zone_func_div100)
+all_LORSI_w = LORSI_zone_class(train_MT, date0, date1, "weekly")
+zone_LORSI_m = LORSI_zone_class(train_MT, date0, date1, "monthly", zone_func=zone_func_div100)
+# TODO: ERROR IN zone_LORSI_m: Has 61 zones, but should have 60 --> Many of the "zone" values are NaN
+
+train_MT_zones = zone_LORSI_m.compute_zones(train_MT)
+train_MT[gr_krets].isna().sum()
 
 # Filter all of Oslo in time, with a 5 week window size
 all_LORSI_w_f = all_LORSI_w.filter_LORSI_in_time(window_size=5)
@@ -464,6 +474,7 @@ all_LORSI_w_f = all_LORSI_w.filter_LORSI_in_time(window_size=5)
 # Augment the zone RSI with_ with missing zones
 zones_arr, zones_neighbors = get_zones_and_neighbors(zone_div=100)
 zone_LORSI_m = zone_LORSI_m.insert_missing_zones(zones_arr)
+
 
 # Filter zone in space
 zone_LORSI_m_s = zone_LORSI_m.filter_LORSI_in_space(zones_neighbors)
@@ -486,13 +497,13 @@ zone_comb_LORSI.set_LORSI_to_zero_mean()
 
 
 # Score
-all_LORSI_w.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
-all_LORSI_w_f.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
-zone_LORSI_m.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
-zone_LORSI_m_s.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
-zone_LORSI_m_s2.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
-zone_LORSI_w_s.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
-zone_comb_LORSI.score_LORSI(df_MT_test, df_MT)["dp_e"].abs().mean()
+all_LORSI_w.score_LORSI(test_MT)["dp_e"].abs().mean()
+all_LORSI_w_f.score_LORSI(test_MT)["dp_e"].abs().mean()
+zone_LORSI_m.score_LORSI(test_MT)["dp_e"].abs().mean()
+zone_LORSI_m_s.score_LORSI(test_MT)["dp_e"].abs().mean()
+zone_LORSI_m_s2.score_LORSI(test_MT)["dp_e"].abs().mean()
+zone_LORSI_w_s.score_LORSI(test_MT)["dp_e"].abs().mean()
+zone_comb_LORSI.score_LORSI(test_MT)["dp_e"].abs().mean()
 
 # PLOTTING
 fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
