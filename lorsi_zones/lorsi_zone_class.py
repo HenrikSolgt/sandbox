@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 from sklearn.model_selection import train_test_split
 
-from zone_analysis import get_zones_and_neighbors
+from grk_zone_geometry import get_grk_zones_and_neighbors
 
 
 # Remove warning
@@ -29,6 +29,38 @@ price_col = "price_inc_debt"
 gr_krets = "grunnkrets_id"
 postcode = "postcode"
 
+PROM_bins = [60, 90]
+
+
+def default_zone_func(df):
+    # Default zone function. Returns a all-zero numpy array of same length as df
+    return np.zeros(len(df))
+
+def zone_func_div(df, zone_div):
+    # Zone function that returns the values of df integer divided by zone_div
+    return df // zone_div
+
+def zone_func_div100(df):
+    # Zone function that returns the first two digits of the values of df
+    return zone_func_div(df=df, zone_div=100)
+
+
+def train_test_split_rep_sales(df_MT):
+    # Split df_MT into train and test sets, but only the repeated sales
+    derived_MT_cols = get_derived_MT_columns(df_MT)
+    RS_idx = get_repeated_idx(derived_MT_cols)
+    _, RS_idx_test = train_test_split(RS_idx, test_size=0.2, random_state=42)
+
+    # Let train_I be I0 and I1 in RS_idx_train
+    # I_train = pd.concat([RS_idx_train["I0"], RS_idx_train["I1"]]).drop_duplicates().sort_values()
+    I_test = pd.concat([RS_idx_test["I0"], RS_idx_test["I1"]]).drop_duplicates().sort_values()
+
+    # Extract indices
+    df_MT_test = df_MT.loc[I_test].reset_index(drop=True)
+    df_MT_train = df_MT.drop(I_test).reset_index(drop=True)
+
+    return df_MT_train, df_MT_test
+
 
 def get_LORSI_and_count_for_zones(df, t0, t1):
     """
@@ -40,9 +72,10 @@ def get_LORSI_and_count_for_zones(df, t0, t1):
         - t0: Start time
         - t1: End time
     Returns:
-        - lorsi: LORSI for all zones in df, as a numpy array
-        - count: Number of transactions for all zones in df, as a numpy array
-        - zones_arr: List of zones, as a numpy array
+        - LORSI: LORSI for all zones in df, as a Pandas DataFrame
+        - count: Number of transactions for all zones in df, as a Pandas DataFrame
+        - zones_arr: List of zones, as a Pandas Series
+        - t_arr: List of times, as a Pandas Series
     """
 
     zones_arr = df["zone"].unique()
@@ -74,18 +107,21 @@ def get_LORSI_and_count_for_zones(df, t0, t1):
     zone_LORSI.fillna(0, inplace=True)
     zone_counts.fillna(0, inplace=True)
 
-    return zone_LORSI.values, zone_counts.values, zones_arr, t_arr
+    return zone_LORSI, zone_counts
 
 
-def default_zone_func(df_MT):
-    """
-    Default zone function. Returns a all-zero numpy array of same length as df_MT.
-    """
-    return np.zeros(len(df_MT))
+def insert_missing_zones(LORSI, count, new_zones_arr):
+    # LORSI and count with missing zones are inserted into LORSI and count, and the new zones are added to zones_arr
+    for zone in new_zones_arr:
+        if zone not in LORSI.keys():
+            LORSI[zone] = np.zeros(len(LORSI))
+            count[zone] = np.zeros(len(count)).astype(int)
 
+    # Sort columns
+    LORSI = LORSI[sorted(LORSI.columns)]
+    count = count[sorted(count.columns)]
 
-def zone_func_div100(df_MT):
-    return df_MT[gr_krets] // 100
+    return LORSI, count
 
 
 class LORSI_zone_class:
@@ -96,13 +132,12 @@ class LORSI_zone_class:
         """ 
 
         res = df
-        res["zone"] = self.zone_func(res)
+        res["zone"] = self.zone_func(res[gr_krets])
         res_idx_nan = res[res["zone"].isna()].index
-
 
         if self.src_MT is not None:
             src_MT = self.src_MT.copy()
-            src_MT["zone"] = self.zone_func(src_MT)
+            src_MT["zone"] = self.zone_func(src_MT[gr_krets])
             src_idx_nan = src_MT[src_MT["zone"].isna()].index
 
             ok_entries = pd.concat([res.drop(res_idx_nan), src_MT.drop(src_idx_nan)])
@@ -113,7 +148,7 @@ class LORSI_zone_class:
         res.loc[res_idx_nan, "zone"] = nan_entries["postcode"].map(ok_entries.groupby("postcode")["zone"].agg(lambda x: x.value_counts().index[0]))
 
         return res["zone"]
-        
+    
 
     def __init__(self, df_MT=None, date0=None, date1=None, period="monthly", zone_func=default_zone_func):
         """
@@ -140,11 +175,23 @@ class LORSI_zone_class:
 
             # Convert date0 and date1 to t0 and t1 and get LORSI and count for the zones
             [t0, t1] = convert_date_to_t([date0, date1], period)
-            [self.LORSI, self.count, self.zones_arr, self.t_arr] = get_LORSI_and_count_for_zones(df, t0, t1) # Create OLS and count for the zones
+            [LORSI, count] = get_LORSI_and_count_for_zones(df, t0, t1) # Create OLS and count for the zones
 
-            # Store source material and the computed zones
+            [zones_geometry, zones_neighbors] = get_grk_zones_and_neighbors(self.zone_func)
+            new_zones_arr = zones_neighbors.index.values
+            LORSI, count = insert_missing_zones(LORSI, count, new_zones_arr)
+
+            # Store a reference to the source material
             self.src_MT = df_MT   # Stores a reference to the original df_MT, which will be used for Zone identification later
+
+            # Store the computed material
             self.src_MT_zones = df["zone"]   # A list of zones for each matched transaction in src_MT
+            self.LORSI = LORSI.values
+            self.count = count.values
+            self.zones_arr = new_zones_arr
+            self.t_arr = LORSI.index.values
+            self.zones_geometry = zones_geometry
+            self.zones_neighbors = zones_neighbors.values
         else:
             # Create an empty object
             # Original data
@@ -155,11 +202,13 @@ class LORSI_zone_class:
             self.zone_func = zone_func
 
             # Computed data
+            self.src_MT_zones = None
             self.LORSI = None
             self.count = None
             self.zones_arr = None
             self.t_arr = None
-            self.src_MT_zones = None
+            self.zones_geometry = None
+            self.zones_neighbors = None
 
 
     def copy(self):
@@ -173,11 +222,12 @@ class LORSI_zone_class:
         res.zone_func = self.zone_func
 
         # Computed data
+        res.src_MT_zones = self.src_MT_zones.copy()
         res.LORSI = self.LORSI.copy()
         res.count = self.count.copy()
         res.zones_arr = self.zones_arr.copy()
         res.t_arr = self.t_arr.copy()
-        res.src_MT_zones = self.src_MT_zones.copy()
+        res.zones_neighbors = self.zones_neighbors.copy() # ERROR: Can be NOne
 
         return res
     
@@ -196,25 +246,11 @@ class LORSI_zone_class:
     def get_count_df(self):
         # Returns the counts as a dataframe with dates as index and zones as columns
         return pd.DataFrame(self.count, index=self.get_dates(), columns=self.zones_arr)
-        
+    
 
-    def insert_missing_zones(self, new_zones_arr):
-        # Augments the stored zones_arr with the new zones in new_zones_arr
-
-        LORSI = pd.DataFrame(self.LORSI, columns=self.zones_arr)
-        count = pd.DataFrame(self.count, columns=self.zones_arr)
-        
-        for zone in new_zones_arr:
-            if zone not in LORSI.keys():
-                LORSI[zone] = np.zeros(len(LORSI))
-                count[zone] = np.zeros(len(count)).astype(int)
-
-        res = self.copy()
-        res.LORSI = LORSI[sorted(LORSI.columns)].values
-        res.count = count[sorted(count.columns)].values
-        res.zones_arr = new_zones_arr.values
-
-        return res
+    def get_zones_neighbors_df(self):
+        # Returns the neighbors as a dataframe with zones as index and columns
+        return pd.DataFrame(self.zones_neighbors, index=self.zones_arr, columns=self.zones_arr)
 
 
     def convert_to_t_days(self, dates):
@@ -291,26 +327,29 @@ class LORSI_zone_class:
         return res
     
 
-    def filter_LORSI_in_space(self, zones_neighbors):
+    def filter_LORSI_in_space(self):
         # Do a spatial filtering: compute the weighted average of the LORSIs of the zone itself and its neighbors.
         LORSI = self.get_LORSI_df()
         count = self.get_count_df()
+        zones_neighbors = self.get_zones_neighbors_df()
 
         LORSI_w = LORSI.copy()
         count_w = count.copy()
 
-        central_zone_w = 5
-
         for zone in LORSI_w.columns:
             neighbors = zones_neighbors[zones_neighbors[zone] == 1].index
+            num_of_neighbors = len(neighbors)
 
             neighbors_LORSI = LORSI[neighbors]
             neighbors_count = count[neighbors]
             
-            weighted_sum = neighbors_LORSI.multiply(neighbors_count).sum(axis=1) + LORSI[zone] * central_zone_w * count[zone]
-            count_sum = neighbors_count.sum(axis=1) + central_zone_w * count[zone]
+            weighted_sum = neighbors_LORSI.multiply(neighbors_count).sum(axis=1) + LORSI[zone] * (num_of_neighbors + 1) * count[zone]
+            count_sum = neighbors_count.sum(axis=1) + (num_of_neighbors + 1) * count[zone]
 
             LORSI_w[zone] = weighted_sum / count_sum
+
+            # Normalize count so that the total number is representatitive 
+            count_sum = count_sum / (2 * num_of_neighbors + 1)
             count_w[zone] = count_sum
 
             # Insert 0 for nan in case of division by 0
@@ -319,6 +358,14 @@ class LORSI_zone_class:
         res = self.copy()
         res.LORSI = LORSI_w.values
         res.count = count_w.values
+
+        return res
+
+
+    def filter_LORSI_in_space_iterations(self, iterations=2):
+        res = self.copy()
+        for _ in range(iterations):
+            res = res.filter_LORSI_in_space()
 
         return res
     
@@ -334,7 +381,7 @@ class LORSI_zone_class:
 
         df = df_MT_test.copy()
 
-        # Fill in the zone column using the zone_func
+        # Fill in the zone column using the internal compute_zones function
         df["zone"] = self.compute_zones(df)
         # TODO: Fix this: dropna should not be necessary
         df = df.dropna(subset=["zone"]).reset_index(drop=True)
@@ -350,7 +397,7 @@ class LORSI_zone_class:
         df_ddp["sold_date0"] = line0[date_col]
         df_ddp["sold_date1"] = line1[date_col]
         df_ddp["dp"] = line1["y"] - line0["y"]
-        df_ddp["zone"] = line0["zone"]
+        df_ddp["zone"] = line1["zone"]
 
         # Filter away all transactions that are not in the time period covered by the class instance
         df_ddp = df_ddp[(df_ddp["sold_date0"] >= self.date0) & (df_ddp["sold_date1"] < self.date1)].reset_index(drop=True)
@@ -424,23 +471,6 @@ class LORSI_zone_class:
 
 
 
-def train_test_split_rep_sales(df_MT):
-    # Split df_MT into train and test sets, but only the repeated sales
-    derived_MT_cols = get_derived_MT_columns(df_MT)
-    RS_idx = get_repeated_idx(derived_MT_cols)
-    RS_idx_train, RS_idx_test = train_test_split(RS_idx, test_size=0.2, random_state=42)
-
-    # Let train_I be I0 and I1 in RS_idx_train
-    I_train = pd.concat([RS_idx_train["I0"], RS_idx_train["I1"]]).drop_duplicates().sort_values()
-    I_test = pd.concat([RS_idx_test["I0"], RS_idx_test["I1"]]).drop_duplicates().sort_values()
-
-    # Extract indices
-    df_MT_train = df_MT.loc[I_train].reset_index(drop=True)
-    df_MT_test = df_MT.loc[I_test].reset_index(drop=True)
-
-    return df_MT_train, df_MT_test
-
-
 """
 MAIN PROGRAM
 """
@@ -456,32 +486,31 @@ period = "monthly"
 df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
 df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
 df_MT[postcode] = df_MT[postcode].astype(int)
+df_MT["PROM_group"] = df_MT["PROM"].apply(lambda x: np.digitize(x, PROM_bins))  # Group into size groups
 
 train_MT, test_MT = train_test_split_rep_sales(df_MT)
-
 
 # Create the LORSI classes
 all_LORSI_w = LORSI_zone_class(train_MT, date0, date1, "weekly")
 zone_LORSI_m = LORSI_zone_class(train_MT, date0, date1, "monthly", zone_func=zone_func_div100)
-# TODO: ERROR IN zone_LORSI_m: Has 61 zones, but should have 60 --> Many of the "zone" values are NaN
-
-train_MT_zones = zone_LORSI_m.compute_zones(train_MT)
-train_MT[gr_krets].isna().sum()
 
 # Filter all of Oslo in time, with a 5 week window size
 all_LORSI_w_f = all_LORSI_w.filter_LORSI_in_time(window_size=5)
 
-# Augment the zone RSI with_ with missing zones
-zones_arr, zones_neighbors = get_zones_and_neighbors(zone_div=100)
-zone_LORSI_m = zone_LORSI_m.insert_missing_zones(zones_arr)
-
-
 # Filter zone in space
-zone_LORSI_m_s = zone_LORSI_m.filter_LORSI_in_space(zones_neighbors)
-zone_LORSI_m_s2 = zone_LORSI_m_s.filter_LORSI_in_space(zones_neighbors)
+zone_LORSI_m_s = zone_LORSI_m.filter_LORSI_in_space_iterations(iterations=3)
+
+s1 = zone_LORSI_m.filter_LORSI_in_space()
+s2 = s1.filter_LORSI_in_space()
+s3 = s2.filter_LORSI_in_space()
+
+d0 = zone_LORSI_m.get_count_df()
+d1 = s1.get_count_df()
+d2 = s2.get_count_df()
+d3 = s3.get_count_df()
 
 # Resample zone LORSI to weekly
-zone_LORSI_w_s = zone_LORSI_m_s2.convert_to_period("weekly", kind="linear")
+zone_LORSI_w_s = zone_LORSI_m_s.convert_to_period("weekly", kind="linear")
 
 # Combine x = all_LORSI_w_f and y = zone_LORSI_w_s into one dataframe, with the LPF component of y and HPF component of x
 zone_comb_LORSI = zone_LORSI_w_s.add_HPF_part_from_LORSI(all_LORSI_w_f, window_size=13)  # 6 weeks is used, as (2*6+1) weeks is approximately 3 months
@@ -490,7 +519,6 @@ zone_comb_LORSI = zone_LORSI_w_s.add_HPF_part_from_LORSI(all_LORSI_w_f, window_s
 all_LORSI_w.set_LORSI_to_zero_mean()
 zone_LORSI_m.set_LORSI_to_zero_mean()
 zone_LORSI_m_s.set_LORSI_to_zero_mean()
-zone_LORSI_m_s2.set_LORSI_to_zero_mean()
 zone_LORSI_w_s.set_LORSI_to_zero_mean()
 all_LORSI_w_f.set_LORSI_to_zero_mean()
 zone_comb_LORSI.set_LORSI_to_zero_mean()
@@ -501,15 +529,24 @@ all_LORSI_w.score_LORSI(test_MT)["dp_e"].abs().mean()
 all_LORSI_w_f.score_LORSI(test_MT)["dp_e"].abs().mean()
 zone_LORSI_m.score_LORSI(test_MT)["dp_e"].abs().mean()
 zone_LORSI_m_s.score_LORSI(test_MT)["dp_e"].abs().mean()
-zone_LORSI_m_s2.score_LORSI(test_MT)["dp_e"].abs().mean()
 zone_LORSI_w_s.score_LORSI(test_MT)["dp_e"].abs().mean()
 zone_comb_LORSI.score_LORSI(test_MT)["dp_e"].abs().mean()
+
+
+zone_arr2 = [2, 34, 56]
 
 # PLOTTING
 fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
 fig = all_LORSI_w.add_scatter(fig, mode="markers")
 fig = all_LORSI_w_f.add_scatter(fig, mode="markers")
-fig = zone_LORSI_m.add_scatter(fig, zone=12, desc="Raw")
-fig = zone_LORSI_m_s2.add_scatter(fig, zone=12, desc="Spatially filtered x2")
-fig = zone_comb_LORSI.add_scatter(fig, zone=12, desc="Combined")
+
+for zone in zone_arr2:
+    fig = zone_LORSI_m.add_scatter(fig, zone=zone, desc="Raw")
+    fig = zone_LORSI_m_s.add_scatter(fig, zone=zone, desc="Spatially filtered")
+    fig = zone_comb_LORSI.add_scatter(fig, zone=zone, desc="Combined")
+
 fig.show()
+
+
+d = zone_LORSI_m.get_count_df()
+
