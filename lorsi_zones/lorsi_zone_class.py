@@ -500,6 +500,36 @@ all_LORSI_w_f = all_LORSI_w.filter_LORSI_in_time(window_size=5)
 # Filter zone in space
 zone_LORSI_m_s = zone_LORSI_m.filter_LORSI_in_space_iterations(iterations=3)
 
+
+
+LORSI = zone_LORSI_m.get_LORSI_df()
+count = zone_LORSI_m.get_count_df()
+zones_neighbors = zone_LORSI_m.get_zones_neighbors_df()
+
+LORSI_w = LORSI.copy()
+count_w = count.copy()
+
+for zone in LORSI_w.columns:
+    neighbors = zones_neighbors[zones_neighbors[zone] == 1].index
+    num_of_neighbors = len(neighbors)
+
+    neighbors_LORSI = LORSI[neighbors]
+    neighbors_count = count[neighbors]
+    
+    weighted_sum = neighbors_LORSI.multiply(neighbors_count).sum(axis=1) + LORSI[zone] * (num_of_neighbors + 1) * count[zone]
+    count_sum = neighbors_count.sum(axis=1) + (num_of_neighbors + 1) * count[zone]
+
+    LORSI_w[zone] = weighted_sum / count_sum
+
+    # Normalize count so that the total number is representatitive 
+    count_sum = count_sum / (2 * num_of_neighbors + 1)
+    count_w[zone] = count_sum
+
+    # Insert 0 for nan in case of division by 0
+    LORSI_w[zone] = LORSI_w[zone].fillna(0)
+
+
+
 s1 = zone_LORSI_m.filter_LORSI_in_space()
 s2 = s1.filter_LORSI_in_space()
 s3 = s2.filter_LORSI_in_space()
@@ -508,6 +538,7 @@ d0 = zone_LORSI_m.get_count_df()
 d1 = s1.get_count_df()
 d2 = s2.get_count_df()
 d3 = s3.get_count_df()
+
 
 # Resample zone LORSI to weekly
 zone_LORSI_w_s = zone_LORSI_m_s.convert_to_period("weekly", kind="linear")
