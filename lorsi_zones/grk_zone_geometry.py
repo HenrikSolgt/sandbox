@@ -31,7 +31,7 @@ def get_zone_neighbors(zones_geometry):
     """
     Find all neighbours of a zone using GeoPandas' intersects method. 
     Returns: 
-        neighbor_matrix: A numpy matrix with 1 if two zones are neighbors, 0 otherwise. It is also 0 on the diagonal.
+        neighbor_matrix: A Pandas DataFrame with 1 if two zones are neighbors, 0 otherwise. It is also 0 on the diagonal.
     """
     N = len(zones_geometry)
     neighbor_matrix = np.zeros((N, N))

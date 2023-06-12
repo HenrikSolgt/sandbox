@@ -118,7 +118,7 @@ def fill_in_nan_zones(df, df_all):
 
 class LORSI_zone_class:
 
-    def __init__(self, df_MT=None, date0=None, date1=None, period="monthly", zone_func=default_zone_func, df_MT_all=None):
+    def __init__(self, df_MT=None, date0=None, date1=None, period="monthly", zone_func=default_zone_func):
         """
         Create a zone_LORSI_class object. This object contains the LORSI for each zone, and the count of sales for each zone. 
         The matched transactions are loaded from df_MT, and only data between date0 and date1 is used.
@@ -455,8 +455,9 @@ I_train = pd.concat([RS_idx_train["I0"], RS_idx_train["I1"]]).drop_duplicates().
 I_test = pd.concat([RS_idx_test["I0"], RS_idx_test["I1"]]).drop_duplicates().sort_values().reset_index(drop=True)
 
 # Extract indices
-df_MT_train = df_MT.loc[I_train].reset_index(drop=True)
 df_MT_test = df_MT.loc[I_test].reset_index(drop=True)
+# Let df_MT_train be all elements in df_MT that are not it df_MT_test
+df_MT_train = df_MT.drop(I_test).reset_index(drop=True)
 
 # Create the LORSI class instances for Oslo weekly, and zones monthly
 # These are the raw datas, without any filtering
@@ -520,21 +521,3 @@ for zone in zones_arr2:
 fig.show()
 
 
-
-
-import sys
-def get_total_size(obj):
-    size = sys.getsizeof(obj)
-    
-    if hasattr(obj, '__dict__'):
-        for attr_name, attr_value in obj.__dict__.items():
-            size += get_total_size(attr_value)
-    
-    if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
-        size += sum(get_total_size(item) for item in obj)
-    
-    return size
-
-
-get_total_size(all_LORSI_w) / 1e6
-get_total_size(all_LORSI_w_f)
