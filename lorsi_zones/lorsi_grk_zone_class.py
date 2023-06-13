@@ -25,7 +25,7 @@ postcode = "postcode"
 
 def default_zone_func(df):
     # Default zone function. Returns a all-zero numpy array of same length as df
-    return np.zeros(len(df))
+    return np.zeros(len(df)).astype(int)
 
 def zone_func_div(df, zone_div):
     # Zone function that returns the values of df integer divided by zone_div
@@ -144,6 +144,7 @@ class LORSI_grk_zone_class:
 
             # If any zones are NaN, remove them (should not be many)
             df = df.dropna(subset=["zone"]).reset_index(drop=True)
+            df["zone"] = df["zone"].astype(int)
 
             # Add the columns derived from the matched transactions
             df = add_derived_MT_columns(df, period, date0)
@@ -352,6 +353,7 @@ class LORSI_grk_zone_class:
         df["zone"] = self.compute_zones(df)
         # TODO: Fix this: dropna should not be necessary
         df = df.dropna(subset=["zone"]).reset_index(drop=True)
+        df["zone"] = df["zone"].astype(int)
 
         # Add the derived columns to the dataframe
         df = add_derived_MT_columns(df, self.period, self.date0)

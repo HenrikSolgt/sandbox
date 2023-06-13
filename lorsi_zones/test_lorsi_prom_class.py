@@ -218,13 +218,14 @@ class LORSI_PROM_class:
         """
 
         LORSI_arr, count_arr, t_arr, zones_arr, PROM_groups = self.get_LORSI_and_count_arr()
+        PROM_groups = PROM_groups.astype(int)  # For some reason, this is needed to avoid problems with indexing
 
         LORSI_arr_w = LORSI_arr.copy()
         count_arr_w = count_arr.copy()
 
-        neighbors_matrix = PROM_raw_f.PROM_neighbors
+        neighbors_matrix = self.PROM_neighbors
 
-        for j in zones_arr:
+        for (j, _) in enumerate(zones_arr):
             LORSI = pd.DataFrame(LORSI_arr[:, j, :], index=t_arr, columns=PROM_groups)
             count = pd.DataFrame(count_arr[:, j, :], index=t_arr, columns=PROM_groups)
 
@@ -256,7 +257,7 @@ class LORSI_PROM_class:
         # Need to copy the filtered results back into the LORSI_PROM objects
         
         res = self.copy()
-        for i in range(self.N_PROM):
+        for i in PROM_groups:
             res.LORSI_PROM[i].LORSI = LORSI_arr_w[:, :, i]
             res.LORSI_PROM[i].count = count_arr_w[:, :, i]
 
@@ -274,9 +275,10 @@ class LORSI_PROM_class:
         dp_e_list = pd.DataFrame()
         for i in self.PROM_groups:
             d = self.LORSI_PROM[i].evaluate_test_set(df[df["PROM_group"] == i])
-            dp_e_list = pd.concat([dp_e_list, d["dp_e"]], axis=0)
+            print(d["dp_e"].abs().mean())
+            dp_e_list = pd.concat([dp_e_list, d], axis=0)
             
-        res = dp_e_list.abs().mean()
+        res = dp_e_list["dp_e"].abs().mean()
 
         return res
 
@@ -288,7 +290,7 @@ class LORSI_PROM_class:
         """
 
         res = self.copy()
-        for i in range(self.N_PROM):
+        for i in self.PROM_groups:
             res.LORSI_PROM[i] = res.LORSI_PROM[i].add_HPF_part_from_LORSI(other.LORSI_PROM[i], window_size)
         
         return res
@@ -296,13 +298,13 @@ class LORSI_PROM_class:
 
     def add_scatter(self, fig, desc="", row=1, col=1, zone=0, PROM_ind=0, mode="lines"):
         # Use self.LORSI_PROM to add a scatter plot to fig, by the PROM_ind index
-        if (PROM_ind > 0):
-            lower_PROM = str(self.PROM_bins[PROM_ind-1])
+        if (PROM_ind >= 0):
+            lower_PROM = str(self.PROM_bins[PROM_ind])
         else:
             lower_PROM = ""
 
         if (PROM_ind < self.N_PROM-1):
-            upper_PROM = str(self.PROM_bins[PROM_ind])
+            upper_PROM = str(self.PROM_bins[PROM_ind+1])
         else:
             upper_PROM = ""
 
@@ -343,33 +345,60 @@ df_MT[postcode] = df_MT[postcode].astype(int)
 
 train_MT, test_MT = train_test_split_rep_sales(df_MT, test_size=0.2)
 
-# all_raw = LORSI_PROM_class(train_MT, date0, date1, "weekly", default_PROM_bins, default_zone_func)
-# all_raw_f = all_raw.filter_LORSI_in_time(window_size=5)
+all_raw = LORSI_PROM_class(train_MT, date0, date1, "weekly", default_PROM_bins, default_zone_func)
+all_raw_f = all_raw.filter_LORSI_in_time(window_size=5)
 PROM_raw = LORSI_PROM_class(train_MT, date0, date1, "weekly", PROM_bins_0_60_90, default_zone_func)
-PROM_raw_f = PROM_raw.filter_LORSI_in_time(window_size=5)
-# TODO: Denne failer
-PROM_f = PROM_raw_f.filter_LORSI_by_PROM()
-# Ser ut til at den får problemer med at PROM_groups ikke er av typen integer
-
-zones_raw = LORSI_PROM_class(train_MT, date0, date1, "monthly", default_PROM_bins, zone_func_div100)
-zones_raw_s = zones_raw.filter_LORSI_by_zone_iterations(iterations=3)
+PROM_f_prom = PROM_raw.filter_LORSI_by_PROM()
+PROM_f_prom_time = PROM_f_prom.filter_LORSI_in_time(window_size=5)
+# PROM_f_prom = PROM_raw.filter_LORSI_by_PROM()
+# PROM_f_prom_time = PROM_f_prom.filter_LORSI_in_time(window_size=5)
+# PROM_f_time_prom = PROM_raw.filter_LORSI_in_time(window_size=5).filter_LORSI_by_PROM()
 
 
-# all_raw.set_LORSI_to_zero_mean()
-# all_raw_f.set_LORSI_to_zero_mean()
+# PROM and zone splitted
+prom_zone = LORSI_PROM_class(train_MT, date0, date1, "monthly", PROM_bins_0_60_90, zone_func_div100)
+# Filter by PROM
+prom_zone_f_prom0 = prom_zone.filter_LORSI_by_PROM()
+prom_zone_f_prom1 = prom_zone_f_prom0.filter_LORSI_by_PROM()
+prom_zone_f_prom = prom_zone_f_prom1.filter_LORSI_by_PROM()
+# Filter by zone
+prom_zone_f_prom_zone = prom_zone_f_prom.filter_LORSI_by_zone_iterations(iterations=3)
+# Filter in time
+prom_zone_f_prom_zone_f_time = prom_zone_f_prom_zone.filter_LORSI_in_time(window_size=3)
+# Resample to weekly
+prom_zone_f_prom_zone_w = prom_zone_f_prom_zone.convert_to_period("weekly")
+
+# Add HPF and LPF parts
+prom_zone_prom_comb = prom_zone_f_prom_zone_w.add_HPF_part_from_LORSI(PROM_f_prom_time, window_size=13)
+
+all_raw.set_LORSI_to_zero_mean()
+all_raw_f.set_LORSI_to_zero_mean()
 PROM_raw.set_LORSI_to_zero_mean()
-PROM_raw_f.set_LORSI_to_zero_mean()
-zones_raw.set_LORSI_to_zero_mean()
-# zones_raw_s.set_LORSI_to_zero_mean()
-
+PROM_f_prom.set_LORSI_to_zero_mean()
+PROM_f_prom_time.set_LORSI_to_zero_mean()
+prom_zone.set_LORSI_to_zero_mean()
+prom_zone_f_prom.set_LORSI_to_zero_mean()
+prom_zone_f_prom_zone.set_LORSI_to_zero_mean()
+prom_zone_f_prom_zone_f_time.set_LORSI_to_zero_mean()
+prom_zone_f_prom_zone_w.set_LORSI_to_zero_mean()
+prom_zone_prom_comb.set_LORSI_to_zero_mean()
 
 
 
 # Plot the LORSI for all PROM groups
 fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
-# fig = all_raw_f.add_scatter(fig, desc="All", row=1, col=1, zone=0, PROM_ind=0, mode="lines")
-for i in range(PROM_raw_f.N_PROM):
-    fig = PROM_raw_f.add_scatter(fig, desc="", row=1, col=1, zone=0, PROM_ind=i, mode="lines")
+# fig = all_raw.add_scatter(fig, desc="All", row=1, col=1, zone=0, PROM_ind=0, mode="lines")
+# fig = all_raw_f.add_scatter(fig, desc="All, filtered", row=1, col=1, zone=0, PROM_ind=0, mode="lines")
+for i in prom_zone.PROM_groups:
+    zone = 6
+    # fig = PROM_raw.add_scatter(fig, desc="", row=1, col=1, zone=0, PROM_ind=i, mode="lines")
+    fig = PROM_f_prom.add_scatter(fig, desc="Filtered in PROM", row=1, col=1, zone=0, PROM_ind=i, mode="lines")
+    fig = PROM_f_prom_time.add_scatter(fig, desc="Filtered in PROM and time", row=1, col=1, zone=0, PROM_ind=i, mode="lines")
+    
+    # fig = prom_zone.add_scatter(fig, desc="", row=1, col=1, zone=zone, PROM_ind=i, mode="lines")
+    # fig = prom_zone_f_prom.add_scatter(fig, desc="Filtered by PROM", row=1, col=1, zone=zone, PROM_ind=i, mode="lines")
+    fig = prom_zone_f_prom_zone_w.add_scatter(fig, desc="Filtered in PROM and zone", row=1, col=1, zone=zone, PROM_ind=i, mode="lines")
+    fig = prom_zone_prom_comb.add_scatter(fig, desc="Combined", row=1, col=1, zone=zone, PROM_ind=i, mode="lines")
 
 fig.show()
 
@@ -377,10 +406,19 @@ fig.show()
 ## Scoring the LORSIs
 
 # all_raw.score_LORSI(test_MT)
-# all_raw_f.score_LORSI(test_MT)
-# PROM_raw.score_LORSI(test_MT)
-# PROM_raw_f.score_LORSI(test_MT)
-# zones_raw.score_LORSI(test_MT)
-# zones_raw_s.score_LORSI(test_MT)
+all_raw_f.score_LORSI(test_MT)
+prom_zone.score_LORSI(test_MT)
+prom_zone_f_prom0.score_LORSI(test_MT)
+prom_zone_f_prom1.score_LORSI(test_MT)
+prom_zone_f_prom.score_LORSI(test_MT)
+prom_zone_f_prom_zone.score_LORSI(test_MT)
+prom_zone_f_prom_zone_w.score_LORSI(test_MT)
+prom_zone_f_prom_zone_f_time.score_LORSI(test_MT)
+prom_zone_prom_comb.score_LORSI(test_MT)
 
 
+df = test_MT.copy()
+df["PROM_group"] = prom_zone_f_prom_zone_w.compute_PROM_group(df)
+prom_zone_prom_comb.LORSI_PROM[0].score_LORSI(df[df["PROM_group"] == 0])
+prom_zone_prom_comb.LORSI_PROM[1].score_LORSI(df[df["PROM_group"] == 0])
+prom_zone_prom_comb.LORSI_PROM[2].score_LORSI(df[df["PROM_group"] == 0])
