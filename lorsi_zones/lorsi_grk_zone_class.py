@@ -71,7 +71,7 @@ def get_LORSI_and_count_for_zones(df, t0, t1):
 
         if (len(df_ttp) > 0):
             LORSI_res = create_and_solve_LORSI_OLS_problem(df_ttp)
-            LORSI_res = LORSI_res[(LORSI_res["t"] >= t0) & (LORSI_res["t"] < t1)].reset_index(drop=True) # Filters wrongly
+            LORSI_res = LORSI_res[(LORSI_res["t"] >= t0) & (LORSI_res["t"] < t1)].reset_index(drop=True) 
 
             # Split LORSI_res into LORSI and count dataframes
             zone_LORSI[zone_no] = LORSI_res[["t", "pred"]].set_index(["t"]).reindex(t_arr).values
