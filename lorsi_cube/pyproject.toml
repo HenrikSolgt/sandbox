@@ -10,6 +10,7 @@ packages = [{include = "lorsi_cube"}]
 python = ">=3.9.0,<3.11"
 matplotlib = "^3.7.1"
 geopandas = "0.12.2"
+seaborn = "^0.11.2"
 "solgt.db" = {path = "../../py/lib/db", develop = true}
 "solgt.priceindex" = {path = "../../py/lib/priceindex", develop = true}
 "solgt.timeseries" = {path = "../../py/lib/timeseries", develop = true}

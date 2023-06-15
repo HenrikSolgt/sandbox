@@ -61,7 +61,7 @@ def get_zone_controid_distances(zones_geometry):
     for i in range(N):
         dist_matrix[:, i] = zones_geometry["centroid"][i].distance(zones_geometry["centroid"])
 
-    res = pd.DataFrame(dist_matrix, index = zones_geometry["zone"], columns = zones["zone"])
+    res = pd.DataFrame(dist_matrix, index = zones_geometry["zone"], columns = zones_geometry["zone"])
 
     return res
     
@@ -71,6 +71,6 @@ def get_grk_zones_and_neighbors(zone_func):
     grunnkretser["zone"] = zone_func(grunnkretser["grunnkretsnummer"])
     zones_geometry = dissolve_grk_by_zone(grunnkretser)
     zones_neighbors = get_zone_neighbors(zones_geometry)
-    zones_distances = pd.DataFrame(floyd_warshall(zones_neighbors.values), index=zones_neighbors.index, columns=zones_neighbors.columns)
+    zones_dist = pd.DataFrame(floyd_warshall(zones_neighbors.values), index=zones_neighbors.index, columns=zones_neighbors.columns)
 
-    return zones_geometry, zones_distances
+    return zones_geometry, zones_dist

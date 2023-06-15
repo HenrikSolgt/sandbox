@@ -149,7 +149,7 @@ class LORSI_cube_class:
             self.t_arr = None
             self.zones_arr = None
             self.zones_geometry = None
-            self.zones_distances = None
+            self.zones_dist = None
             self.PROM_arr = None
             self.N_t = None
             self.N_z = None
@@ -168,7 +168,7 @@ class LORSI_cube_class:
             res.t_arr = self.t_arr.copy()
             res.zones_arr = self.zones_arr.copy()
             res.zones_geometry = self.zones_geometry.copy()
-            res.zones_distances = self.zones_distances.copy()
+            res.zones_dist = self.zones_dist.copy()
             res.PROM_arr = self.PROM_arr.copy()
             res.N_t = self.N_t
             res.N_z = self.N_z
@@ -237,8 +237,10 @@ class LORSI_cube_class:
 
         # Compute the t_arr, zones_arr and PROM_arr
         self.t_arr = np.arange(t0, t1)
-        [self.zones_geometry, self.zones_distances] = get_grk_zones_and_neighbors(self.zone_func)
-        self.zones_arr = self.zones_distances.index.values
+        [zones_geometry, zones_dist] = get_grk_zones_and_neighbors(self.zone_func)
+        self.zones_arr = zones_dist.index.values
+        self.zones_dist = zones_dist.astype(int).values
+        self.zones_geometry = zones_geometry["geometry"].values
         self.PROM_arr = np.arange(len(self.PROM_bins))
 
         # Compute the lenghts of the arrays
@@ -248,7 +250,7 @@ class LORSI_cube_class:
 
         # Compute LORSI and count for all zones and PROM groups
         self.compute_LORSI_and_count()
-        self.set_LORSI_to_zero_mean()
+        self.set_LORSI_to_zero_mean()  # Purely for visualization purposes
 
         # Set computed flag to True
         self.computed = True
@@ -269,22 +271,22 @@ class LORSI_cube_class:
         self.LORSI = self.LORSI - np.mean(self.LORSI, axis=0)
 
 
-    def get_LORSI_zone_df(self, zone=0):
+    def get_LORSI_PROM_df(self, zone=0):
         # Returns the LORSI for the given zone as a dataframe with dates as index and PROM as columns
         return pd.DataFrame(self.LORSI[:, zone, :], index=self.get_dates(), columns=self.PROM_arr)
-    
 
-    def get_count_zone_df(self, zone=0):
+
+    def get_count_PROM_df(self, zone=0):
         # Returns the LORSI for the given zone as a dataframe with dates as index and PROM as columns
         return pd.DataFrame(self.count[:, zone, :], index=self.get_dates(), columns=self.PROM_arr)
     
 
-    def get_LORSI_PROM_df(self, PROM_group=0):
+    def get_LORSI_zone_df(self, PROM_group=0):
         # Returns the LORSI for the given zone as a dataframe with dates as index and zones_arr as columns
         return pd.DataFrame(self.LORSI[:, :, PROM_group], index=self.get_dates(), columns=self.zones_arr)
 
 
-    def get_count_PROM_df(self, PROM_group=0):
+    def get_count_zone_df(self, PROM_group=0):
         # Returns the LORSI for the given zone as a dataframe with dates as index and zones_arr as columns
         return pd.DataFrame(self.count[:, :, PROM_group], index=self.get_dates(), columns=self.zones_arr)
 
@@ -333,6 +335,7 @@ class LORSI_cube_class:
             res.LORSI, res.count = res.interpolate_to_dates(new_dates, kind=kind)
 
             res.t_arr = new_t_arr
+            res.N_t = len(res.t_arr)
             res.period = new_period
 
             res.set_LORSI_to_zero_mean()
@@ -361,6 +364,8 @@ class LORSI_cube_class:
         res.LORSI = LORSI_w
         res.count = count_w
 
+        res.set_LORSI_to_zero_mean()
+
         return res
 
 
@@ -373,13 +378,31 @@ class LORSI_cube_class:
         return None
     
 
-    def filter_by_PROM(self):
-        # Can be written like filter in time
-        return None
+    def filter_by_PROM(self, window_size=3, window_type="flat"):
+        # Filter the LORSI by PROM, where a get_window function is used to create a window
+
+        weights = self.count  # Can made more flexible later if needed
+            
+        window = get_window(window_size, window_type)
+
+        LORSI_w = np.zeros(self.LORSI.shape)
+        count_w = np.zeros(self.LORSI.shape)
+        for (i, _) in enumerate(self.zones_arr):
+            for (j, _) in enumerate(self.t_arr):
+                LORSI_w[j, i, :] = np.convolve(self.LORSI[j, i, :] * weights[j, i, :], window, mode="same") / np.convolve(weights[j, i, :], window, mode="same")
+                count_w[j, i, :] = np.convolve(self.count[j, i, :], window, mode="same")
+
+        res = self.copy()
+        res.LORSI = LORSI_w
+        res.count = count_w
+
+        res.set_LORSI_to_zero_mean()
+
+        return res
     
 
     def add_scatter(self, fig, desc="", row=1, col=1, zone=0, PROM=0, mode="lines"):
-        df = self.get_LORSI_zone_df(zone)
+        df = self.get_LORSI_PROM_df(zone=zone)
         name = "Period: " + self.period + ", Zone: " + str(zone) + ", PROM: " + str(PROM)
         if desc != "":
             name += ", " + desc
@@ -391,32 +414,121 @@ class LORSI_cube_class:
 date0 = datetime.date(2012, 1, 1)
 date1 = datetime.date(2022, 1, 1)
 
-period = "quarterly"
+period = "monthly"
 
 df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
 df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
 df_MT[postcode] = df_MT[postcode].astype(int)
 
 
-all_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=default_PROM_bins)
-PROM_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=PROM_bins_0_60_90)
-# PROM_zone_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=zone_func_div100, PROM_bins=PROM_bins_0_60_90)
+# # Uniform spacing of 10
+# PROM_bins_s10 = np.arange(0, 200, 10)
 
-all_LORSI_m = all_LORSI.convert_to_period("monthly")
-PROM_LORSI_m = PROM_LORSI.convert_to_period("monthly")
+# # all_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=default_PROM_bins)
+# # PROM_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=PROM_bins_0_60_90)
+# PROM_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=PROM_bins_s10)
+zone_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=zone_func_div100, PROM_bins=default_PROM_bins)
+
+# # all_LORSI_m = all_LORSI.convert_to_period("monthly")
+# PROM_LORSI_m = PROM_LORSI.convert_to_period("monthly")
 
 
-# Filtering in time
-all_LORSI_m_f1 = all_LORSI_m.filter_in_time(window_size=5, window_type="flat")
-PROM_LORSI_m_f1 = PROM_LORSI_m.filter_in_time(window_size=5, window_type="hamming")
+# # Filtering in time
+# # all_LORSI_m_f1 = all_LORSI_m.filter_in_time(window_size=5, window_type="flat")
+# # PROM_LORSI_m_f1 = PROM_LORSI_m.filter_in_time(window_size=7, window_type="hamming")
+# # PROM_LORSI_m_f2 = PROM_LORSI_m.filter_in_time(window_size=5, window_type="flat")
+
+# # Filter by PROM
+# PROM_LORSI_m_fp = PROM_LORSI_m.filter_by_PROM(window_size=5, window_type="flat")
+# PROM_LORSI_m_fp2 = PROM_LORSI_m.filter_by_PROM(window_size=5, window_type="hamming")
+
+# Plot
+# fig = make_subplots(rows=1, cols=1)
+# fig = all_LORSI.add_scatter(fig, desc="All, Quarterly", row=1, col=1, zone=0, PROM=0, mode="lines")
+# fig = all_LORSI_m.add_scatter(fig, desc="All, ", row=1, col=1, zone=0, PROM=0, mode="lines")
+# # Print PROM_LORSI
+# for PROM_group in PROM_LORSI.PROM_arr:
+#     fig = PROM_LORSI_m.add_scatter(fig, desc="", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
+#     # fig = PROM_LORSI_m_f1.add_scatter(fig, desc="Filtered, hamming", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
+#     # fig = PROM_LORSI_m_f2.add_scatter(fig, desc="Filtered, flat", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
+#     fig = PROM_LORSI_m_fp.add_scatter(fig, desc="Filtered by PROM, Flat", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
+#     fig = PROM_LORSI_m_fp2.add_scatter(fig, desc="Filtered by PROM, Hamming", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
+
+
+# fig.show()
+
+
+
+"""
+Filter by zone
+"""
+
+dist = zone_LORSI.zones_dist
+zones_arr = zone_LORSI.zones_arr
+LORSI = zone_LORSI.LORSI
+count = zone_LORSI.count
+
+LORSI_w = np.zeros(LORSI.shape)
+count_w = np.zeros(LORSI.shape)
+
+w_L = 1
+window = np.zeros(w_L + 1)
+for d in range(w_L+1):
+    avg_d = (dist == d).sum(axis=0).mean()
+    window[d] = 1 / avg_d
+window = window / np.sum(window)
+
+d_max = min([w_L, dist.max()])
+
+for (i, zone) in enumerate(zones_arr):
+    d_LORSI = np.zeros([zone_LORSI.N_t, d_max+1])
+    d_count = np.zeros([zone_LORSI.N_t, d_max+1])
+
+    # Extract the LORSI and count of the actual zone
+    d_LORSI[:, 0] = LORSI[:, i, 0]
+    d_count[:, 0] = count[:, i, 0]
+
+    # Iterate all d_max closest neighbors
+    for d in range(1, d_max+1):
+        # Get index of the nearest neighbors (that is: distance = 1)
+        neighbor_idx = np.where(dist[i, :] == d)[0]
+
+        # Extract the LORSI and count of the neighbors
+        LORSI_neighbors = LORSI[:, neighbor_idx, 0]
+        count_neighbors = count[:, neighbor_idx, 0]
+
+        # Compute the count sum of the neighbors
+        d_sum = np.sum(count_neighbors, axis=1)
+
+        # Store the count of the neighbors
+        d_count[:, d] = d_sum
+
+        # Handle division by a zero: Set the relevant d_sum element to 1 to avoid division by zero
+        d_sum_is_zero = (d_sum == 0)
+        d_sum[d_sum_is_zero] = 1
+
+        # Compute the weighted average LORSI
+        d_LORSI[:, d] = np.sum(LORSI_neighbors * count_neighbors, axis=1) / d_sum
+
+    # Compute the weighted average count sum
+    count_w_sum = np.sum(d_count * window, axis=1).reshape(-1, 1)
+    count_w[:, i] = count_w_sum
+
+    # Handle division by a zero: Set the relevant count_w_sum element to 1 to avoid division by zero
+    count_w_sum_is_zero = (count_w_sum == 0)
+    count_w_sum[count_w_sum_is_zero] = 1
+
+    # Compute the weighted average LORSI
+    LORSI_w[:, i] = np.sum(d_LORSI * d_count * window, axis=1).reshape(-1, 1) / count_w_sum
+
+
 
 # Plot
 fig = make_subplots(rows=1, cols=1)
-fig = all_LORSI.add_scatter(fig, desc="Quarterly", row=1, col=1, zone=0, PROM=0, mode="lines")
-fig = all_LORSI_m.add_scatter(fig, desc="", row=1, col=1, zone=0, PROM=0, mode="lines")
-# Print PROM_LORSI
-for PROM_group in PROM_LORSI.PROM_arr:
-    fig = PROM_LORSI_m.add_scatter(fig, desc="", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
-    fig = PROM_LORSI_m_f1.add_scatter(fig, desc="Filtered", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
+# Add LORSI_w
+for (i, zone) in enumerate(zones_arr):
+    fig = zone_LORSI.add_scatter(fig, desc="All, Monthly", row=1, col=1, zone=i, PROM=0, mode="lines")    
+    fig = fig.add_trace(go.Scatter(x=zone_LORSI.get_dates(), y=LORSI_w[:, i, 0], name="i = " + str(i) +  ", Filtered"), row=1, col=1)
 
 fig.show()
+
