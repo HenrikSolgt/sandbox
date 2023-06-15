@@ -31,6 +31,7 @@ prom_code = "PROM"
 
 default_PROM_bins = [0]
 PROM_bins_0_60_90 = [0, 60, 90]
+PROM_bins_s10 = [10*c for c in range(1, 15, 1)]
 
 
 def get_window(window_size=5, window_type="flat", beta=14):
@@ -56,6 +57,24 @@ def get_window(window_size=5, window_type="flat", beta=14):
     return window
 
 
+
+def train_test_split_rep_sales(df_MT, test_size=0.2):
+    # Split df_MT into train and test sets, but only the repeated sales
+    derived_MT_cols = get_derived_MT_columns(df_MT)
+    RS_idx = get_repeated_idx(derived_MT_cols)
+    _, RS_idx_test = train_test_split(RS_idx, test_size=test_size)
+
+    # Let train_I be I0 and I1 in RS_idx_train
+    # I_train = pd.concat([RS_idx_train["I0"], RS_idx_train["I1"]]).drop_duplicates().sort_values()
+    I_test = pd.concat([RS_idx_test["I0"], RS_idx_test["I1"]]).drop_duplicates().sort_values()
+
+    # Extract indices
+    df_MT_test = df_MT.loc[I_test].reset_index(drop=True)
+    df_MT_train = df_MT.drop(I_test).reset_index(drop=True)
+
+    return df_MT_train, df_MT_test
+
+
 def default_zone_func(df):
     # Default zone function. Returns a all-zero numpy array of same length as df
     return np.zeros(len(df)).astype(int)
@@ -69,6 +88,11 @@ def zone_func_div(df, zone_div):
 def zone_func_div100(df):
     # Zone function that returns the first two digits of the values of df
     return zone_func_div(df=df, zone_div=100)
+
+
+def zone_func_div1000(df):
+    # Zone function that returns the first two digits of the values of df
+    return zone_func_div(df=df, zone_div=1000)
 
 
 
@@ -148,7 +172,7 @@ class LORSI_cube_class:
             self.count = None
             self.t_arr = None
             self.zones_arr = None
-            self.zones_geometry = None
+            self.zones_geom = None
             self.zones_dist = None
             self.PROM_arr = None
             self.N_t = None
@@ -167,7 +191,7 @@ class LORSI_cube_class:
             res.count = self.count.copy()
             res.t_arr = self.t_arr.copy()
             res.zones_arr = self.zones_arr.copy()
-            res.zones_geometry = self.zones_geometry.copy()
+            res.zones_geom = self.zones_geom.copy()
             res.zones_dist = self.zones_dist.copy()
             res.PROM_arr = self.PROM_arr.copy()
             res.N_t = self.N_t
@@ -237,10 +261,10 @@ class LORSI_cube_class:
 
         # Compute the t_arr, zones_arr and PROM_arr
         self.t_arr = np.arange(t0, t1)
-        [zones_geometry, zones_dist] = get_grk_zones_and_neighbors(self.zone_func)
+        [zones_geom, zones_dist] = get_grk_zones_and_neighbors(self.zone_func)
         self.zones_arr = zones_dist.index.values
         self.zones_dist = zones_dist.astype(int).values
-        self.zones_geometry = zones_geometry["geometry"].values
+        self.zones_geom = zones_geom["geometry"].values
         self.PROM_arr = np.arange(len(self.PROM_bins))
 
         # Compute the lenghts of the arrays
@@ -369,14 +393,84 @@ class LORSI_cube_class:
         return res
 
 
-    def filter_by_zone(self, zone_distance=1):
+    def filter_by_zone(self, w_L=2):
         """
-        This function should be able to filter the LORSI by zone, where a get_window function is used to create a window.
-        The distance to the zone, as stated in zones_distances, is used as distance to the zone when doing the filtering.
+        This function filters the LORSI spatially using zone neighbors. w_L is the (maximum) distance to consider.
         Note that the number of neighbours has to be taken into account, as the volume weighting can be biased when the number of neighbours is high
         """
-        return None
-    
+
+        LORSI = self.LORSI
+        count = self.count
+        dist = self.zones_dist
+        zones_arr = self.zones_arr
+
+        LORSI_w = np.zeros(LORSI.shape)
+        count_w = np.zeros(count.shape)
+
+        # Create zone filtering window
+        window = np.zeros(w_L + 1)
+        for d in range(w_L+1):
+            avg_d = (dist == d).sum(axis=0).mean()
+            window[d] = 1 / avg_d
+        window = window / np.sum(window)
+
+        # Maximum distance to consider. Is set to the minimum of w_L and the maximum distance between two zones
+        d_max = min([w_L, dist.max()])
+
+        for (i, zone) in enumerate(zones_arr):
+            d_LORSI = np.zeros([zone_LORSI.N_t, d_max+1])
+            d_count = np.zeros([zone_LORSI.N_t, d_max+1])
+
+            # Extract the LORSI and count of the actual zone
+            d_LORSI[:, 0] = LORSI[:, i, 0]
+            d_count[:, 0] = count[:, i, 0]
+
+            # Iterate all d_max closest neighbors
+            for d in range(1, d_max+1):
+                # Get index of the nearest neighbors (that is: distance = 1)
+                neighbor_idx = np.where(dist[i, :] == d)[0]
+
+                # Extract the LORSI and count of the neighbors
+                LORSI_neighbors = LORSI[:, neighbor_idx, 0]
+                count_neighbors = count[:, neighbor_idx, 0]
+
+                # Compute the count sum of the neighbors
+                d_sum = np.sum(count_neighbors, axis=1)
+
+                # Store the count of the neighbors
+                    # Can do division by len(neighbor_idx) is to preserve the count scale. Can be removed
+                # d_count[:, d] = d_sum / len(neighbor_idx) 
+                d_count[:, d] = d_sum
+
+                # Handle division by a zero: Set the relevant d_sum element to 1 to avoid division by zero
+                d_sum_is_zero = (d_sum == 0)
+                d_sum[d_sum_is_zero] = 1
+
+                # Compute the weighted average LORSI
+                d_LORSI[:, d] = np.sum(LORSI_neighbors * count_neighbors, axis=1) / d_sum
+
+            # Compute the weighted average count sum
+            count_w_sum = np.sum(d_count * window, axis=1).reshape(-1, 1)
+            count_w[:, i] = count_w_sum
+
+            # Handle division by a zero: Set the relevant count_w_sum element to 1 to avoid division by zero
+            count_w_sum_is_zero = (count_w_sum == 0)
+            count_w_sum[count_w_sum_is_zero] = 1
+
+            # Compute the weighted average LORSI
+            LORSI_w[:, i] = np.sum(d_LORSI * d_count * window, axis=1).reshape(-1, 1) / count_w_sum
+
+        # Can scale the count to the original scale
+        # count_w = count_w * self.count.sum() / count_w.sum()
+
+        res = self.copy()
+        res.LORSI = LORSI_w
+        res.count = count_w
+
+        res.set_LORSI_to_zero_mean()
+
+        return res
+
 
     def filter_by_PROM(self, window_size=3, window_type="flat"):
         # Filter the LORSI by PROM, where a get_window function is used to create a window
@@ -401,6 +495,74 @@ class LORSI_cube_class:
         return res
     
 
+    def evaluate_test_set(self, df_MT_test):
+        """
+        This function evaluates the test set using the LORSI model
+        """
+        df = df_MT_test.copy()
+
+        # Fill in the zone column using the internal compute_zones function
+        df["zone"] = self.compute_zones(df)
+        df["PROM_group"] = self.compute_PROM_groups(df)
+
+        # If there are any zones of PROM_group that are NaN, then remove them (should not be many)
+        df = df.dropna(subset=["zone", "PROM_group"])
+
+        # Convert to integers
+        df["zone"] = df["zone"].astype(int)
+        df["PROM_group"] = df["PROM_group"].astype(int)
+
+        # Add the derived columns to the dataframe
+        df = add_derived_MT_columns(df, self.period, self.date0)
+
+        # Get the index of the repeated sales
+        RS_idx_test = get_repeated_idx(df)
+        
+        df_ddp = pd.DataFrame()
+        line0, line1 = get_RS_idx_lines(df, RS_idx_test, [date_col, "y", "zone"])
+        df_ddp["sold_date0"] = line0[date_col]
+        df_ddp["sold_date1"] = line1[date_col]
+        df_ddp["dp"] = line1["y"] - line0["y"]
+        df_ddp["zone"] = line1["zone"]
+
+        # Filter away all transactions that are not in the time period covered by the class instance
+        df_ddp = df_ddp[(df_ddp["sold_date0"] >= self.date0) & (df_ddp["sold_date1"] < self.date1)].reset_index(drop=True)
+
+        df_ddp["t0"] = self.convert_to_t_days(df_ddp["sold_date0"])
+        df_ddp["t1"] = self.convert_to_t_days(df_ddp["sold_date1"])
+
+        # Needs to interpolate the LORSI: May be sampled at random dates
+        LORSI = self.LORSI
+        zones_arr = self.zones_arr
+        PROM_arr = self.PROM_arr
+
+        # Need to create an interpolation function for each zone and PROM group
+        LORSI_index = self.convert_to_t_days(self.get_dates())
+        for (i, zone) in enumerate(zones_arr):
+            for (j, PROM_group) in enumerate(PROM_arr):
+                f = interpolate.interp1d(LORSI_index, LORSI[:, i, j], fill_value="extrapolate")
+
+                df_ddp_zone = df_ddp[df_ddp["zone"] == zone]
+                pred0 = f(df_ddp_zone["t0"])
+                pred1 = f(df_ddp_zone["t1"])
+
+                df_ddp.loc[df_ddp_zone.index, "pred0"] = pred0
+                df_ddp.loc[df_ddp_zone.index, "pred1"] = pred1
+                df_ddp.loc[df_ddp_zone.index, "dp_est"] = pred1 - pred0
+
+        df_ddp["dp_e"] = df_ddp["dp"] - df_ddp["dp_est"]
+
+        return df_ddp
+
+
+    def score_LORSI(self, df_MT_test):
+        # Scores the LORSI on the test set df_MT_test, by calling evaluate_test_set and computing the mean absolute error of the prediction
+        df_ddp = self.evaluate_test_set(df_MT_test)
+        res = df_ddp["dp_e"].abs().mean()
+        print("LORSI score: ", str(res))
+        return res
+    
+
     def add_scatter(self, fig, desc="", row=1, col=1, zone=0, PROM=0, mode="lines"):
         df = self.get_LORSI_PROM_df(zone=zone)
         name = "Period: " + self.period + ", Zone: " + str(zone) + ", PROM: " + str(PROM)
@@ -421,114 +583,49 @@ df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month,
 df_MT[postcode] = df_MT[postcode].astype(int)
 
 
+train_MT, test_MT = train_test_split_rep_sales(df_MT, test_size=0.2)
+
+
 # # Uniform spacing of 10
 # PROM_bins_s10 = np.arange(0, 200, 10)
+all_LORSI = LORSI_cube_class(train_MT, date0, date1, period)
+zone_LORSI = LORSI_cube_class(train_MT, date0, date1, period, zone_func=zone_func_div100)
+PROM_LORSI = LORSI_cube_class(train_MT, date0, date1, period, PROM_bins=PROM_bins_0_60_90)
 
-# # all_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=default_PROM_bins)
-# # PROM_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=PROM_bins_0_60_90)
-# PROM_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=default_zone_func, PROM_bins=PROM_bins_s10)
-zone_LORSI = LORSI_cube_class(df_MT, date0, date1, period, zone_func=zone_func_div100, PROM_bins=default_PROM_bins)
+split = LORSI_cube_class(train_MT, date0, date1, period, zone_func=zone_func_div1000, PROM_bins=PROM_bins_0_60_90)
+split_z = split.filter_by_zone(w_L=2)
+split_z_p = split_z.filter_by_PROM(window_size=3)
+split_z_p_f = split_z_p.filter_in_time(window_size=3)
 
-# # all_LORSI_m = all_LORSI.convert_to_period("monthly")
-# PROM_LORSI_m = PROM_LORSI.convert_to_period("monthly")
+zone_LORSI_z = zone_LORSI.filter_by_zone(w_L=2)
+zone_LORSI_z_f = zone_LORSI_z.filter_in_time(window_size=3, window_type="flat")
+zone_LORSI_z_f2 = zone_LORSI_z.filter_in_time(window_size=7, window_type="hamming")
 
-
-# # Filtering in time
-# # all_LORSI_m_f1 = all_LORSI_m.filter_in_time(window_size=5, window_type="flat")
-# # PROM_LORSI_m_f1 = PROM_LORSI_m.filter_in_time(window_size=7, window_type="hamming")
-# # PROM_LORSI_m_f2 = PROM_LORSI_m.filter_in_time(window_size=5, window_type="flat")
-
-# # Filter by PROM
-# PROM_LORSI_m_fp = PROM_LORSI_m.filter_by_PROM(window_size=5, window_type="flat")
-# PROM_LORSI_m_fp2 = PROM_LORSI_m.filter_by_PROM(window_size=5, window_type="hamming")
-
-# Plot
-# fig = make_subplots(rows=1, cols=1)
-# fig = all_LORSI.add_scatter(fig, desc="All, Quarterly", row=1, col=1, zone=0, PROM=0, mode="lines")
-# fig = all_LORSI_m.add_scatter(fig, desc="All, ", row=1, col=1, zone=0, PROM=0, mode="lines")
-# # Print PROM_LORSI
-# for PROM_group in PROM_LORSI.PROM_arr:
-#     fig = PROM_LORSI_m.add_scatter(fig, desc="", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
-#     # fig = PROM_LORSI_m_f1.add_scatter(fig, desc="Filtered, hamming", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
-#     # fig = PROM_LORSI_m_f2.add_scatter(fig, desc="Filtered, flat", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
-#     fig = PROM_LORSI_m_fp.add_scatter(fig, desc="Filtered by PROM, Flat", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
-#     fig = PROM_LORSI_m_fp2.add_scatter(fig, desc="Filtered by PROM, Hamming", row=1, col=1, zone=0, PROM=PROM_group, mode="lines")
-
-
-# fig.show()
-
-
-
-"""
-Filter by zone
-"""
-
-dist = zone_LORSI.zones_dist
-zones_arr = zone_LORSI.zones_arr
-LORSI = zone_LORSI.LORSI
-count = zone_LORSI.count
-
-LORSI_w = np.zeros(LORSI.shape)
-count_w = np.zeros(LORSI.shape)
-
-w_L = 1
-window = np.zeros(w_L + 1)
-for d in range(w_L+1):
-    avg_d = (dist == d).sum(axis=0).mean()
-    window[d] = 1 / avg_d
-window = window / np.sum(window)
-
-d_max = min([w_L, dist.max()])
-
-for (i, zone) in enumerate(zones_arr):
-    d_LORSI = np.zeros([zone_LORSI.N_t, d_max+1])
-    d_count = np.zeros([zone_LORSI.N_t, d_max+1])
-
-    # Extract the LORSI and count of the actual zone
-    d_LORSI[:, 0] = LORSI[:, i, 0]
-    d_count[:, 0] = count[:, i, 0]
-
-    # Iterate all d_max closest neighbors
-    for d in range(1, d_max+1):
-        # Get index of the nearest neighbors (that is: distance = 1)
-        neighbor_idx = np.where(dist[i, :] == d)[0]
-
-        # Extract the LORSI and count of the neighbors
-        LORSI_neighbors = LORSI[:, neighbor_idx, 0]
-        count_neighbors = count[:, neighbor_idx, 0]
-
-        # Compute the count sum of the neighbors
-        d_sum = np.sum(count_neighbors, axis=1)
-
-        # Store the count of the neighbors
-        d_count[:, d] = d_sum
-
-        # Handle division by a zero: Set the relevant d_sum element to 1 to avoid division by zero
-        d_sum_is_zero = (d_sum == 0)
-        d_sum[d_sum_is_zero] = 1
-
-        # Compute the weighted average LORSI
-        d_LORSI[:, d] = np.sum(LORSI_neighbors * count_neighbors, axis=1) / d_sum
-
-    # Compute the weighted average count sum
-    count_w_sum = np.sum(d_count * window, axis=1).reshape(-1, 1)
-    count_w[:, i] = count_w_sum
-
-    # Handle division by a zero: Set the relevant count_w_sum element to 1 to avoid division by zero
-    count_w_sum_is_zero = (count_w_sum == 0)
-    count_w_sum[count_w_sum_is_zero] = 1
-
-    # Compute the weighted average LORSI
-    LORSI_w[:, i] = np.sum(d_LORSI * d_count * window, axis=1).reshape(-1, 1) / count_w_sum
-
-
+PROM_LORSI_p = PROM_LORSI.filter_by_PROM(window_size=3)
+PROM_LORSI_f = PROM_LORSI_p.filter_in_time(window_size=3, window_type="flat")
 
 # Plot
 fig = make_subplots(rows=1, cols=1)
 # Add LORSI_w
-for (i, zone) in enumerate(zones_arr):
+for (i, zone) in enumerate(zone_LORSI.zones_arr):
     fig = zone_LORSI.add_scatter(fig, desc="All, Monthly", row=1, col=1, zone=i, PROM=0, mode="lines")    
-    fig = fig.add_trace(go.Scatter(x=zone_LORSI.get_dates(), y=LORSI_w[:, i, 0], name="i = " + str(i) +  ", Filtered"), row=1, col=1)
 
 fig.show()
+
+
+
+print("Score: All")
+res = all_LORSI.score_LORSI(test_MT)
+res = zone_LORSI.score_LORSI(test_MT)
+res = zone_LORSI_z.score_LORSI(test_MT)
+res = zone_LORSI_z_f.score_LORSI(test_MT)
+res = zone_LORSI_z_f2.score_LORSI(test_MT)
+res = PROM_LORSI.score_LORSI(test_MT)
+res = PROM_LORSI_p.score_LORSI(test_MT)
+res = PROM_LORSI_f.score_LORSI(test_MT)
+
+res = split.score_LORSI(test_MT)
+res = split_z.score_LORSI(test_MT)
+res = split_z_p.score_LORSI(test_MT)
+res = split_z_p_f.score_LORSI(test_MT)
 
