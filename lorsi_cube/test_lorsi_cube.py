@@ -1,6 +1,5 @@
 # Python packages
 import datetime
-import time
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -31,7 +30,8 @@ prom_code = "PROM"
 
 default_PROM_bins = [0]
 PROM_bins_0_60_90 = [0, 60, 90]
-PROM_bins_s10 = [10*c for c in range(1, 15, 1)]
+PROM_bins_s20 = [20*c for c in range(1, 8, 1)]
+PROM_bins_0_80 = [0, 80]
 
 
 def get_window(window_size=5, window_type="flat", beta=14):
@@ -367,15 +367,15 @@ class LORSI_cube_class:
         return res
 
 
-    def filter_in_time(self, weights=None, window_size=5, window_type="flat"):
+    def filter_in_time(self, weights=None, window_size=5, window_type="flat", beta=14):
         # Filters the LORSI values in time using the count as weights, unless weights are explicitly given. 
-        # Window_type can be "flat", "hanning", "hamming", "bartlett", "blackman", "kaiser". Default is flat. If kaiser, the beta parameter is set to 14.
+        # Window_type can be "flat", "hanning", "hamming", "bartlett", "blackman", "kaiser". Default is flat. If kaiser, the beta parameter is optional (default is 14).
         # Returns the result as a class of the same type.
 
         if weights is None:
             weights = self.count
             
-        window = get_window(window_size, window_type)
+        window = get_window(window_size, window_type, beta=beta)
 
         LORSI_w = np.zeros(self.LORSI.shape)
         count_w = np.zeros(self.LORSI.shape)
@@ -399,15 +399,19 @@ class LORSI_cube_class:
         Note that the number of neighbours has to be taken into account, as the volume weighting can be biased when the number of neighbours is high
         """
 
+        # Extract variables
         LORSI = self.LORSI
         count = self.count
         dist = self.zones_dist
         zones_arr = self.zones_arr
+        PROM_arr = self.PROM_arr
+        N_t = self.N_t
 
+        # Initialize result arrays
         LORSI_w = np.zeros(LORSI.shape)
         count_w = np.zeros(count.shape)
 
-        # Create zone filtering window
+        # Create zone filtering window. The window is inversely proportional to the average number of zones at a given distance
         window = np.zeros(w_L + 1)
         for d in range(w_L+1):
             avg_d = (dist == d).sum(axis=0).mean()
@@ -417,48 +421,50 @@ class LORSI_cube_class:
         # Maximum distance to consider. Is set to the minimum of w_L and the maximum distance between two zones
         d_max = min([w_L, dist.max()])
 
-        for (i, zone) in enumerate(zones_arr):
-            d_LORSI = np.zeros([zone_LORSI.N_t, d_max+1])
-            d_count = np.zeros([zone_LORSI.N_t, d_max+1])
+        # Iterate all PROM_groups and zones
+        for (j, _) in enumerate(PROM_arr):
+            for (i, _) in enumerate(zones_arr):
+                d_LORSI = np.zeros([N_t, d_max+1])
+                d_count = np.zeros([N_t, d_max+1])
 
-            # Extract the LORSI and count of the actual zone
-            d_LORSI[:, 0] = LORSI[:, i, 0]
-            d_count[:, 0] = count[:, i, 0]
+                # Extract the LORSI and count of the zone and PROM we are currently looking at
+                d_LORSI[:, 0] = LORSI[:, i, j]
+                d_count[:, 0] = count[:, i, j]
 
-            # Iterate all d_max closest neighbors
-            for d in range(1, d_max+1):
-                # Get index of the nearest neighbors (that is: distance = 1)
-                neighbor_idx = np.where(dist[i, :] == d)[0]
+                # Iterate all d_max closest neighbors
+                for d in range(1, d_max+1):
+                    # Get index of the nearest neighbors (that is: distance = 1)
+                    neighbor_idx = np.where(dist[i, :] == d)[0]
 
-                # Extract the LORSI and count of the neighbors
-                LORSI_neighbors = LORSI[:, neighbor_idx, 0]
-                count_neighbors = count[:, neighbor_idx, 0]
+                    # Extract the LORSI and count of the neighbors
+                    LORSI_neighbors = LORSI[:, neighbor_idx, j]
+                    count_neighbors = count[:, neighbor_idx, j]
 
-                # Compute the count sum of the neighbors
-                d_sum = np.sum(count_neighbors, axis=1)
+                    # Compute the count sum of the neighbors
+                    d_sum = np.sum(count_neighbors, axis=1)
 
-                # Store the count of the neighbors
-                    # Can do division by len(neighbor_idx) is to preserve the count scale. Can be removed
-                # d_count[:, d] = d_sum / len(neighbor_idx) 
-                d_count[:, d] = d_sum
+                    # Store the count of the neighbors
+                        # Can do division by len(neighbor_idx) is to preserve the count scale. Can be removed.
+                    # d_count[:, d] = d_sum / len(neighbor_idx) 
+                    d_count[:, d] = d_sum
 
-                # Handle division by a zero: Set the relevant d_sum element to 1 to avoid division by zero
-                d_sum_is_zero = (d_sum == 0)
-                d_sum[d_sum_is_zero] = 1
+                    # Handle division by a zero: Set the relevant d_sum element to 1 to avoid division by zero
+                    d_sum_is_zero = (d_sum == 0)
+                    d_sum[d_sum_is_zero] = 1
+
+                    # Compute the weighted average LORSI
+                    d_LORSI[:, d] = np.sum(LORSI_neighbors * count_neighbors, axis=1) / d_sum
+
+                # Compute the weighted average count sum
+                count_w_sum = np.sum(d_count * window, axis=1)
+                count_w[:, i, j] = count_w_sum
+
+                # Handle division by a zero: Set the relevant count_w_sum element to 1 to avoid division by zero
+                count_w_sum_is_zero = (count_w_sum == 0)
+                count_w_sum[count_w_sum_is_zero] = 1
 
                 # Compute the weighted average LORSI
-                d_LORSI[:, d] = np.sum(LORSI_neighbors * count_neighbors, axis=1) / d_sum
-
-            # Compute the weighted average count sum
-            count_w_sum = np.sum(d_count * window, axis=1).reshape(-1, 1)
-            count_w[:, i] = count_w_sum
-
-            # Handle division by a zero: Set the relevant count_w_sum element to 1 to avoid division by zero
-            count_w_sum_is_zero = (count_w_sum == 0)
-            count_w_sum[count_w_sum_is_zero] = 1
-
-            # Compute the weighted average LORSI
-            LORSI_w[:, i] = np.sum(d_LORSI * d_count * window, axis=1).reshape(-1, 1) / count_w_sum
+                LORSI_w[:, i, j] = np.sum(d_LORSI * d_count * window, axis=1) / count_w_sum
 
         # Can scale the count to the original scale
         # count_w = count_w * self.count.sum() / count_w.sum()
@@ -472,28 +478,84 @@ class LORSI_cube_class:
         return res
 
 
-    def filter_by_PROM(self, window_size=3, window_type="flat"):
-        # Filter the LORSI by PROM, where a get_window function is used to create a window
-
-        weights = self.count  # Can made more flexible later if needed
-            
-        window = get_window(window_size, window_type)
-
-        LORSI_w = np.zeros(self.LORSI.shape)
-        count_w = np.zeros(self.LORSI.shape)
-        for (i, _) in enumerate(self.zones_arr):
-            for (j, _) in enumerate(self.t_arr):
-                LORSI_w[j, i, :] = np.convolve(self.LORSI[j, i, :] * weights[j, i, :], window, mode="same") / np.convolve(weights[j, i, :], window, mode="same")
-                count_w[j, i, :] = np.convolve(self.count[j, i, :], window, mode="same")
+    def filter_by_PROM(self, window_size=3, window_type="flat", beta=14):
+        # Filter the LORSI by PROM, where a get_window function is used to create a window.
+        # Window_type can be "flat", "hanning", "hamming", "bartlett", "blackman", "kaiser". Default is flat. If kaiser, the beta parameter is optional (default is 14).
+        # Returns the result as a class of the same type.
 
         res = self.copy()
-        res.LORSI = LORSI_w
-        res.count = count_w
+
+        if (self.N_p > 1):
+            weights = self.count  # Can made more flexible later if needed
+                
+            window = get_window(window_size, window_type, beta=beta)
+
+            LORSI_w = np.zeros(self.LORSI.shape)
+            count_w = np.zeros(self.LORSI.shape)
+            for (i, _) in enumerate(self.zones_arr):
+                for (j, _) in enumerate(self.t_arr):
+                    LORSI_w[j, i, :] = np.convolve(self.LORSI[j, i, :] * weights[j, i, :], window, mode="same") / np.convolve(weights[j, i, :], window, mode="same")
+                    count_w[j, i, :] = np.convolve(self.count[j, i, :], window, mode="same")
+
+            res.LORSI = LORSI_w
+            res.count = count_w
+
+            res.set_LORSI_to_zero_mean()
+
+        return res
+    
+
+    def add_HPF_part_from_LORSI(self, other, other_zone=0, other_PROM=0, window_size=5):
+        """
+        Does a count-weighted LPF-filtering of self, and adds the HPF part of the LORSI instance other to it.
+        other does not need to be sampled at the same dates as self, as a linear interpolation is done.
+        Inputs:
+            - other: LORSI_class instance. Only the first zone is used. The HPF part of this zone is added to every LORSI zone of self.
+            - other_zone: Int or "matching": The zone index in other to use. Default is 0, where only the first zone is used. 
+                If "matching", the zones of self and other are assumed to be the same.
+            - other_PROM: Int or "matching": The PROM index in other to use. Default is 0, where only the first PROM is used.
+            - window_size: int. Size of the window for the LPF filtering.
+
+        NOTE: It is assumed that that the PROM_groups are the same for self and other.
+        NOTE: If other_zone is "matching", it is also assumed that the zones are the same for self and other. If it is an integer, only the given zone is used
+        NOTE: The information in count does not change, only the LORSI values.
+        """
+
+        # Convert other to the same period as self
+        other = other.convert_to_period(self.period)
+        
+        # Extract the LORSI and count dataframes
+        x = other.LORSI
+        y = self.LORSI
+        y_c = self.count
+        zones_arr = self.zones_arr
+        PROM_arr = self.PROM_arr
+
+        LPF_y = np.zeros(y.shape)
+        HPF_x = np.zeros(y.shape)
+
+        for (i, _) in enumerate(zones_arr):
+            if other_zone == "matching":
+                i_other = i
+            else:
+                i_other = other_zone
+            for (j, _) in enumerate(PROM_arr):
+                if other_PROM == "matching":
+                    j_other = j
+                else:
+                    j_other = other_PROM
+
+                weights = y_c[:, i, j]
+                LPF_y[:, i, j] = smooth_w(y[:, i, j], weights, window_size) 
+                HPF_x[:, i, j] = x[:, i_other, j_other] - smooth_w(x[:, i_other, j_other], weights, window_size)
+
+        res = self.copy()
+        res.LORSI = LPF_y + HPF_x
 
         res.set_LORSI_to_zero_mean()
 
         return res
-    
+
 
     def evaluate_test_set(self, df_MT_test):
         """
@@ -519,11 +581,12 @@ class LORSI_cube_class:
         RS_idx_test = get_repeated_idx(df)
         
         df_ddp = pd.DataFrame()
-        line0, line1 = get_RS_idx_lines(df, RS_idx_test, [date_col, "y", "zone"])
+        line0, line1 = get_RS_idx_lines(df, RS_idx_test, [date_col, "y", "zone", "PROM_group"])
         df_ddp["sold_date0"] = line0[date_col]
         df_ddp["sold_date1"] = line1[date_col]
         df_ddp["dp"] = line1["y"] - line0["y"]
         df_ddp["zone"] = line1["zone"]
+        df_ddp["PROM_group"] = line1["PROM_group"]
 
         # Filter away all transactions that are not in the time period covered by the class instance
         df_ddp = df_ddp[(df_ddp["sold_date0"] >= self.date0) & (df_ddp["sold_date1"] < self.date1)].reset_index(drop=True)
@@ -542,13 +605,13 @@ class LORSI_cube_class:
             for (j, PROM_group) in enumerate(PROM_arr):
                 f = interpolate.interp1d(LORSI_index, LORSI[:, i, j], fill_value="extrapolate")
 
-                df_ddp_zone = df_ddp[df_ddp["zone"] == zone]
-                pred0 = f(df_ddp_zone["t0"])
-                pred1 = f(df_ddp_zone["t1"])
+                df_ddp_sub = df_ddp[(df_ddp["zone"] == zone) & (df_ddp["PROM_group"] == PROM_group)]
+                pred0 = f(df_ddp_sub["t0"])
+                pred1 = f(df_ddp_sub["t1"])
 
-                df_ddp.loc[df_ddp_zone.index, "pred0"] = pred0
-                df_ddp.loc[df_ddp_zone.index, "pred1"] = pred1
-                df_ddp.loc[df_ddp_zone.index, "dp_est"] = pred1 - pred0
+                df_ddp.loc[df_ddp_sub.index, "pred0"] = pred0
+                df_ddp.loc[df_ddp_sub.index, "pred1"] = pred1
+                df_ddp.loc[df_ddp_sub.index, "dp_est"] = pred1 - pred0
 
         df_ddp["dp_e"] = df_ddp["dp"] - df_ddp["dp_est"]
 
@@ -586,46 +649,37 @@ df_MT[postcode] = df_MT[postcode].astype(int)
 train_MT, test_MT = train_test_split_rep_sales(df_MT, test_size=0.2)
 
 
-# # Uniform spacing of 10
-# PROM_bins_s10 = np.arange(0, 200, 10)
-all_LORSI = LORSI_cube_class(train_MT, date0, date1, period)
-zone_LORSI = LORSI_cube_class(train_MT, date0, date1, period, zone_func=zone_func_div100)
-PROM_LORSI = LORSI_cube_class(train_MT, date0, date1, period, PROM_bins=PROM_bins_0_60_90)
+"""
+Test split
+"""
+all_LORSI = LORSI_cube_class(train_MT, date0, date1, "weekly")
+all_LORSI_f = all_LORSI.filter_in_time(window_size=5)
 
-split = LORSI_cube_class(train_MT, date0, date1, period, zone_func=zone_func_div1000, PROM_bins=PROM_bins_0_60_90)
-split_z = split.filter_by_zone(w_L=2)
-split_z_p = split_z.filter_by_PROM(window_size=3)
-split_z_p_f = split_z_p.filter_in_time(window_size=3)
+# SPLIT LORSI
+# PROM_bins = [0, 30, 60, 90, 120, 150]
+PROM_bins = [0, 60, 90]
+split_LORSI = LORSI_cube_class(train_MT, date0, date1, "monthly", zone_func=zone_func_div100, PROM_bins=PROM_bins)
+split_LORSI_z = split_LORSI.filter_by_zone(w_L=2)
+split_LORSI_z_p = split_LORSI_z.filter_by_PROM(window_size=3, window_type="kaiser", beta=3)
 
-zone_LORSI_z = zone_LORSI.filter_by_zone(w_L=2)
-zone_LORSI_z_f = zone_LORSI_z.filter_in_time(window_size=3, window_type="flat")
-zone_LORSI_z_f2 = zone_LORSI_z.filter_in_time(window_size=7, window_type="hamming")
+split_LORSI_z_p_w = split_LORSI_z_p.convert_to_period("weekly")
 
-PROM_LORSI_p = PROM_LORSI.filter_by_PROM(window_size=3)
-PROM_LORSI_f = PROM_LORSI_p.filter_in_time(window_size=3, window_type="flat")
-
-# Plot
-fig = make_subplots(rows=1, cols=1)
-# Add LORSI_w
-for (i, zone) in enumerate(zone_LORSI.zones_arr):
-    fig = zone_LORSI.add_scatter(fig, desc="All, Monthly", row=1, col=1, zone=i, PROM=0, mode="lines")    
-
-fig.show()
+split_LORSI_z_p_comb = split_LORSI_z_p_w.add_HPF_part_from_LORSI(all_LORSI_f, other_zone=0, other_PROM=0, window_size=13)
 
 
+# # Plot figure
+# fig = make_subplots(rows=1, cols=1)
+# for PROM in split_LORSI.PROM_arr:
+#     fig = split_LORSI.add_scatter(fig, desc="prom", row=1, col=1, PROM=PROM)
+#     fig = split_LORSI_z_p.add_scatter(fig, desc="prom_z_p", row=1, col=1, PROM=PROM)
+#     fig = split_LORSI_z_p_comb.add_scatter(fig, desc="prom_z_p_comb", row=1, col=1, PROM=PROM)
 
-print("Score: All")
+# fig.show()
+
+
 res = all_LORSI.score_LORSI(test_MT)
-res = zone_LORSI.score_LORSI(test_MT)
-res = zone_LORSI_z.score_LORSI(test_MT)
-res = zone_LORSI_z_f.score_LORSI(test_MT)
-res = zone_LORSI_z_f2.score_LORSI(test_MT)
-res = PROM_LORSI.score_LORSI(test_MT)
-res = PROM_LORSI_p.score_LORSI(test_MT)
-res = PROM_LORSI_f.score_LORSI(test_MT)
-
-res = split.score_LORSI(test_MT)
-res = split_z.score_LORSI(test_MT)
-res = split_z_p.score_LORSI(test_MT)
-res = split_z_p_f.score_LORSI(test_MT)
-
+res = all_LORSI_f.score_LORSI(test_MT)
+res = split_LORSI.score_LORSI(test_MT)
+res = split_LORSI_z.score_LORSI(test_MT)
+res = split_LORSI_z_p.score_LORSI(test_MT)
+res = split_LORSI_z_p_comb.score_LORSI(test_MT)

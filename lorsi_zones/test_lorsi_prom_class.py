@@ -275,7 +275,6 @@ class LORSI_PROM_class:
         dp_e_list = pd.DataFrame()
         for i in self.PROM_groups:
             d = self.LORSI_PROM[i].evaluate_test_set(df[df["PROM_group"] == i])
-            print(d["dp_e"].abs().mean())
             dp_e_list = pd.concat([dp_e_list, d], axis=0)
             
         res = dp_e_list["dp_e"].abs().mean()
@@ -405,7 +404,7 @@ fig.show()
 
 ## Scoring the LORSIs
 
-# all_raw.score_LORSI(test_MT)
+all_raw.score_LORSI(test_MT)
 all_raw_f.score_LORSI(test_MT)
 prom_zone.score_LORSI(test_MT)
 prom_zone_f_prom0.score_LORSI(test_MT)
