@@ -13,6 +13,7 @@ from solgt.db.MT_parquet import get_parquet_as_df, update_MT_parquet_file
 from solgt.priceindex.repeatsales import get_derived_MT_columns, add_derived_MT_columns, get_repeated_idx, get_RS_idx_lines, get_df_ttp_from_RS_idx, create_and_solve_LORSI_OLS_problem
 from solgt.timeseries.date_t_converter import convert_date_to_t, convert_t_to_date
 from solgt.timeseries.filter import smooth_w
+import solgt.db.dss
 
 
 # Remove warning
@@ -56,4 +57,8 @@ df_postcode_zone = df.groupby(postcode)["zone"].agg(lambda x: x.value_counts().i
 
 # Now upload to Mongo DB
 
+prodDB = solgt.db.dss.get_prodDB()
 
+collection = prodDB["postcode_zone"]
+collection.drop()
+collection.insert_many(df_postcode_zone[["postcode", "zone"]].T.to_dict().values())
