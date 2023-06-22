@@ -77,8 +77,7 @@ def get_HMI_AD_weekly():
 
 
 
-
-def stitch_CBI(HMI_monthly, RSI_weekly, HMI_AD_weekly):
+def create_CBI_from_HMI_RSI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
     """
     Stitches a CBI from three different price indices.
     """
@@ -200,7 +199,7 @@ def get_CBI(df_MT):
     RSI_weekly = rsi.get_RSI(df_MT, date0, todaydate, "weekly")
     HMI_AD_weekly = get_HMI_AD_weekly()
 
-    CBI = stitch_CBI(HMI_monthly, RSI_weekly, HMI_AD_weekly)
+    CBI = create_CBI_from_HMI_RSI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
     
     # Keep only the date and price columns
     CBI = CBI[["date", "price"]]
