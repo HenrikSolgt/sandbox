@@ -1,0 +1,629 @@
+POSTNR,BYDEL
+1,Sentrum
+10,Sentrum
+15,Sentrum
+18,Sentrum
+21,Frogner
+24,Alna
+26,Sentrum
+28,Sentrum
+30,Sentrum
+31,Sentrum
+32,Sentrum
+33,Sentrum
+34,Sentrum
+37,Sentrum
+40,Sagene
+45,Stovner
+46,Stovner
+47,Stovner
+48,Sentrum
+50,Sentrum
+55,Sentrum
+81,Sentrum
+101,Sentrum
+102,Sentrum
+103,Sentrum
+104,Sentrum
+105,Sentrum
+106,Sentrum
+107,Sentrum
+109,Sentrum
+110,Sentrum
+111,Sentrum
+112,Sentrum
+113,Sentrum
+114,Sentrum
+115,Sentrum
+116,Sentrum
+117,Sentrum
+118,Sentrum
+119,Sentrum
+120,Sentrum
+121,Sentrum
+122,Sentrum
+123,Sentrum
+124,Sentrum
+125,Sentrum
+128,Sentrum
+129,St.Hanshaugen
+130,St.Hanshaugen
+131,St.Hanshaugen
+133,Gamle Oslo
+134,Gamle Oslo
+135,Gamle Oslo
+136,St.Hanshaugen
+138,Nordstrand
+139,Nordstrand
+150,Gamle Oslo
+151,Sentrum
+152,Sentrum
+153,Sentrum
+154,Sentrum
+155,Sentrum
+157,Sentrum
+158,Sentrum
+159,Sentrum
+160,Sentrum
+161,Sentrum
+162,Sentrum
+164,Sentrum
+165,St.Hanshaugen
+166,Sentrum
+167,Frogner
+168,St.Hanshaugen
+169,St.Hanshaugen
+170,St.Hanshaugen
+171,St.Hanshaugen
+172,St.Hanshaugen
+173,St.Hanshaugen
+174,St.Hanshaugen
+175,Grünerløkka
+176,St.Hanshaugen
+177,St.Hanshaugen
+178,St.Hanshaugen
+179,St.Hanshaugen
+180,St.Hanshaugen
+181,St.Hanshaugen
+182,Grünerløkka
+183,St.Hanshaugen
+184,Sentrum
+185,Sentrum
+186,Grünerløkka
+187,Gamle Oslo
+188,Gamle Oslo
+190,Gamle Oslo
+191,Gamle Oslo
+192,Gamle Oslo
+193,Nordstrand
+194,Gamle Oslo
+195,Gamle Oslo
+196,Gamle Oslo
+198,Nordstrand
+201,Frogner
+202,Frogner
+203,Frogner
+204,Frogner
+207,Frogner
+208,Frogner
+211,Frogner
+212,Ullern
+213,Ullern
+214,Ullern
+215,Ullern
+216,Ullern
+218,Ullern
+230,Frogner
+240,Frogner
+244,Frogner
+247,Ullern
+250,Frogner
+251,Sentrum
+252,Frogner
+253,Frogner
+254,Frogner
+255,Frogner
+256,Frogner
+257,Frogner
+258,Frogner
+259,Frogner
+260,Frogner
+262,Frogner
+263,Frogner
+264,Frogner
+265,Frogner
+266,Frogner
+267,Frogner
+268,Frogner
+270,Frogner
+271,Frogner
+272,Frogner
+273,Frogner
+274,Ullern
+275,Ullern
+276,Ullern
+277,Ullern
+278,Ullern
+279,Ullern
+280,Ullern
+281,Ullern
+282,Ullern
+283,Ullern
+284,Ullern
+286,Frogner
+287,Frogner
+301,Frogner
+302,Frogner
+303,Frogner
+304,Frogner
+305,Frogner
+306,Frogner
+307,Frogner
+308,Frogner
+309,Vestre Aker
+311,Ullern
+313,Nordre Aker
+314,Nordre Aker
+315,Nordre Aker
+316,Nordre Aker
+317,Nordre Aker
+318,Nordre Aker
+319,Vestre Aker
+323,Frogner
+330,Frogner
+340,St.Hanshaugen
+349,Nordre Aker
+350,Frogner
+351,Frogner
+352,Frogner
+353,Frogner
+354,Frogner
+355,Frogner
+356,Frogner
+357,Frogner
+358,St.Hanshaugen
+359,St.Hanshaugen
+360,St.Hanshaugen
+361,St.Hanshaugen
+362,Frogner
+363,Frogner
+364,Frogner
+365,Frogner
+366,Frogner
+367,Frogner
+368,Frogner
+369,Frogner
+370,Vestre Aker
+371,Vestre Aker
+372,Nordre Aker
+373,Vestre Aker
+374,Vestre Aker
+375,Ullern
+376,Vestre Aker
+377,Ullern
+378,Vestre Aker
+379,Ullern
+380,Ullern
+381,Ullern
+382,Ullern
+383,Ullern
+401,Nordre Aker
+402,Nordre Aker
+403,Nordre Aker
+404,Nordre Aker
+405,Nordre Aker
+406,Sagene
+409,Nordre Aker
+410,Nordre Aker
+411,Nordre Aker
+412,Sagene
+413,Sagene
+415,Sagene
+421,Nordre Aker
+422,Nordre Aker
+423,Nordre Aker
+424,Nordre Aker
+440,St.Hanshaugen
+441,Nordre Aker
+442,Nordre Aker
+445,Sagene
+450,St.Hanshaugen
+451,St.Hanshaugen
+452,St.Hanshaugen
+454,St.Hanshaugen
+455,St.Hanshaugen
+456,St.Hanshaugen
+457,Sagene
+458,Sagene
+459,Sagene
+460,Sagene
+461,Sagene
+462,Sagene
+463,Sagene
+464,Sagene
+465,Sagene
+467,Sagene
+468,Sagene
+469,Sagene
+470,Sagene
+472,Sagene
+473,Sagene
+474,Sagene
+475,Sagene
+476,Sagene
+477,Sagene
+478,Sagene
+479,Sagene
+480,Sagene
+481,Sagene
+482,Sagene
+483,Sagene
+484,Nordre Aker
+485,Sagene
+486,Nordre Aker
+487,Nordre Aker
+488,Nordre Aker
+489,Nordre Aker
+490,Nordre Aker
+491,Nordre Aker
+492,Nordre Aker
+493,Nordre Aker
+494,Nordre Aker
+495,Nordre Aker
+496,Marka
+501,Grünerløkka
+502,Grünerløkka
+503,Grünerløkka
+504,Grünerløkka
+505,Grünerløkka
+506,Grünerløkka
+508,Bjerke
+509,Bjerke
+510,Bjerke
+511,Bjerke
+512,Bjerke
+513,Bjerke
+515,Bjerke
+516,Bjerke
+517,Bjerke
+518,Bjerke
+520,Bjerke
+540,Bjerke
+550,Grünerløkka
+551,Grünerløkka
+552,Grünerløkka
+553,Grünerløkka
+554,Grünerløkka
+555,Sagene
+556,Grünerløkka
+557,Grünerløkka
+558,Grünerløkka
+559,Grünerløkka
+560,Grünerløkka
+561,Gamle Oslo
+562,Grünerløkka
+563,Grünerløkka
+564,Grünerløkka
+565,Grünerløkka
+566,Grünerløkka
+567,Grünerløkka
+568,Grünerløkka
+569,Grünerløkka
+570,Grünerløkka
+571,Grünerløkka
+572,Grünerløkka
+573,Grünerløkka
+574,Grünerløkka
+575,Grünerløkka
+576,Grünerløkka
+577,Gamle Oslo
+578,Gamle Oslo
+579,Grünerløkka
+580,Bjerke
+581,Bjerke
+582,Bjerke
+583,Bjerke
+584,Bjerke
+585,Grünerløkka
+586,Bjerke
+587,Nordre Aker
+588,Nordre Aker
+589,Bjerke
+590,Bjerke
+591,Bjerke
+592,Bjerke
+593,Bjerke
+594,Bjerke
+595,Bjerke
+596,Bjerke
+597,Bjerke
+598,Bjerke
+601,Gamle Oslo
+602,Gamle Oslo
+603,Gamle Oslo
+604,Gamle Oslo
+605,Gamle Oslo
+606,Gamle Oslo
+607,Gamle Oslo
+608,Gamle Oslo
+609,Gamle Oslo
+611,Østensjø
+612,Østensjø
+613,Alna
+614,Alna
+616,Alna
+617,Alna
+618,Alna
+619,Østensjø
+620,Østensjø
+621,Østensjø
+622,Østensjø
+623,Alna
+624,Østensjø
+626,Gamle Oslo
+650,Gamle Oslo
+651,Gamle Oslo
+652,Gamle Oslo
+653,Gamle Oslo
+654,Gamle Oslo
+655,Gamle Oslo
+656,Gamle Oslo
+657,Gamle Oslo
+658,Gamle Oslo
+659,Gamle Oslo
+660,Gamle Oslo
+661,Gamle Oslo
+662,Gamle Oslo
+663,Gamle Oslo
+664,Alna
+665,Alna
+666,Alna
+667,Østensjø
+668,Alna
+669,Alna
+670,Alna
+671,Østensjø
+672,Alna
+673,Alna
+674,Alna
+675,Alna
+676,Alna
+677,Nordstrand
+678,Østensjø
+679,Østensjø
+680,Østensjø
+681,Østensjø
+682,Østensjø
+683,Østensjø
+684,Østensjø
+685,Østensjø
+686,Østensjø
+687,Østensjø
+688,Østensjø
+689,Østensjø
+690,Østensjø
+691,Østensjø
+692,Østensjø
+693,Østensjø
+694,Østensjø
+701,Vestre Aker
+702,Vestre Aker
+705,Vestre Aker
+710,Vestre Aker
+712,Vestre Aker
+750,Ullern
+751,Vestre Aker
+752,Vestre Aker
+753,Vestre Aker
+754,Vestre Aker
+755,Vestre Aker
+756,Vestre Aker
+757,Vestre Aker
+758,Marka
+760,Vestre Aker
+763,Vestre Aker
+764,Vestre Aker
+765,Vestre Aker
+766,Vestre Aker
+767,Vestre Aker
+768,Vestre Aker
+770,Vestre Aker
+771,Vestre Aker
+772,Vestre Aker
+773,Vestre Aker
+774,Vestre Aker
+775,Vestre Aker
+776,Vestre Aker
+777,Vestre Aker
+778,Vestre Aker
+779,Vestre Aker
+781,Vestre Aker
+782,Vestre Aker
+783,Vestre Aker
+784,Vestre Aker
+785,Vestre Aker
+786,Vestre Aker
+787,Vestre Aker
+788,Vestre Aker
+789,Vestre Aker
+790,Vestre Aker
+791,Vestre Aker
+801,Nordre Aker
+805,Nordre Aker
+806,Nordre Aker
+807,Nordre Aker
+840,Nordre Aker
+850,St.Hanshaugen
+851,Nordre Aker
+852,Nordre Aker
+853,Nordre Aker
+854,Nordre Aker
+855,Nordre Aker
+856,Nordre Aker
+857,Nordre Aker
+858,Nordre Aker
+860,Nordre Aker
+861,Nordre Aker
+862,Nordre Aker
+863,Nordre Aker
+864,Nordre Aker
+870,Nordre Aker
+871,Nordre Aker
+872,Nordre Aker
+873,Nordre Aker
+874,Nordre Aker
+875,Nordre Aker
+876,Nordre Aker
+877,Nordre Aker
+880,Nordre Aker
+881,Nordre Aker
+882,Nordre Aker
+883,Nordre Aker
+884,Nordre Aker
+890,Marka
+891,Marka
+901,Grorud
+902,Grorud
+903,Grorud
+904,Grorud
+905,Grorud
+907,Grorud
+908,Grorud
+913,Stovner
+915,Stovner
+950,Bjerke
+951,Grorud
+952,Grorud
+953,Grorud
+954,Grorud
+955,Grorud
+956,Grorud
+957,Grorud
+958,Grorud
+959,Grorud
+960,Grorud
+962,Grorud
+963,Grorud
+964,Grorud
+968,Stovner
+969,Stovner
+970,Grorud
+971,Grorud
+972,Grorud
+973,Grorud
+975,Grorud
+976,Grorud
+977,Stovner
+978,Stovner
+979,Stovner
+980,Stovner
+981,Stovner
+982,Stovner
+983,Stovner
+984,Stovner
+985,Stovner
+986,Stovner
+987,Stovner
+988,Stovner
+1001,Alna
+1003,Alna
+1005,Stovner
+1006,Alna
+1007,Alna
+1008,Alna
+1009,Alna
+1011,Alna
+1051,Alna
+1052,Alna
+1053,Alna
+1054,Alna
+1055,Stovner
+1056,Alna
+1061,Alna
+1062,Alna
+1063,Alna
+1064,Alna
+1065,Alna
+1067,Alna
+1068,Alna
+1069,Alna
+1071,Alna
+1081,Alna
+1083,Alna
+1084,Stovner
+1086,Stovner
+1087,Stovner
+1088,Stovner
+1089,Stovner
+1101,Nordstrand
+1109,Alna
+1112,Alna
+1150,Nordstrand
+1151,Nordstrand
+1152,Nordstrand
+1153,Nordstrand
+1154,Nordstrand
+1155,Nordstrand
+1156,Nordstrand
+1157,Nordstrand
+1158,Nordstrand
+1160,Nordstrand
+1161,Nordstrand
+1162,Nordstrand
+1163,Nordstrand
+1164,Nordstrand
+1165,Nordstrand
+1166,Nordstrand
+1167,Nordstrand
+1168,Nordstrand
+1169,Nordstrand
+1170,Nordstrand
+1172,Nordstrand
+1176,Nordstrand
+1177,Nordstrand
+1178,Nordstrand
+1179,Nordstrand
+1181,Nordstrand
+1182,Nordstrand
+1184,Nordstrand
+1185,Nordstrand
+1187,Østensjø
+1188,Østensjø
+1189,Østensjø
+1201,Søndre Nordstrand
+1203,Søndre Nordstrand
+1204,Søndre Nordstrand
+1205,Søndre Nordstrand
+1207,Søndre Nordstrand
+1214,Søndre Nordstrand
+1215,Søndre Nordstrand
+1250,Søndre Nordstrand
+1251,Søndre Nordstrand
+1252,Søndre Nordstrand
+1253,Søndre Nordstrand
+1254,Søndre Nordstrand
+1255,Søndre Nordstrand
+1256,Søndre Nordstrand
+1257,Søndre Nordstrand
+1258,Søndre Nordstrand
+1259,Søndre Nordstrand
+1262,Søndre Nordstrand
+1263,Søndre Nordstrand
+1266,Søndre Nordstrand
+1270,Søndre Nordstrand
+1271,Søndre Nordstrand
+1272,Søndre Nordstrand
+1273,Søndre Nordstrand
+1274,Søndre Nordstrand
+1275,Søndre Nordstrand
+1278,Søndre Nordstrand
+1279,Søndre Nordstrand
+1281,Søndre Nordstrand
+1283,Søndre Nordstrand
+1284,Søndre Nordstrand
+1285,Søndre Nordstrand
+1286,Søndre Nordstrand
+1290,Søndre Nordstrand
+1291,Søndre Nordstrand
+1294,Søndre Nordstrand
+1295,Søndre Nordstrand
