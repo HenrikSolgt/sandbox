@@ -16,22 +16,6 @@ t_switch0_diff = 28 * 2  # Eight weeks
 AD_diff_days = 365  # Only use data from last year for the HMI
 
 
-def normalize_index(df_I, t_switch0, t_switch1):
-    # Normalize so that the mean value is 1 in the period [t_switch0, t_switch1]
-
-    # If series is datetime, make it into date
-    if isinstance(df_I["date"][0], datetime.datetime):
-        df_I["date"] = df_I["date"].apply(lambda x: x.date())
-
-    # dt_obj_wo_tz = dt_obj_w_tz.replace(tzinfo=None)
-    ref_I = df_I[(df_I["date"] > t_switch0) & (df_I["date"] < t_switch1)][
-        "price"
-    ].mean()
-
-    df_I["price"] = df_I["price"] / ref_I
-
-    return df_I
-
 
 def get_HMI_AD_weekly():
     # Get (locally stored) added data
