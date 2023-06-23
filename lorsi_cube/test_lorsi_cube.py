@@ -113,10 +113,7 @@ class LORSI_cube_class:
     - count: Number of transactions numpy array with dimensions (time, zone, PROM)
     - t_arr: List of times, in the t-format. Can be used to convert to date format using date0, date1 and 
     - zones_arr: List of zones
-    - PROM_bins: List of PROM bins
-    - N_t: Number of time periods
-    - N_z: Number of zones
-    - N_p: Number of PROM bins
+    - PROM_arr: List of PROM indexes. Can be used to convert to PROM size using PROM_bins
     """
 
     def compute_zones(self, df):
