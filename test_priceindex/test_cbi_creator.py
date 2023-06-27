@@ -19,6 +19,7 @@ from plotly.subplots import make_subplots
 from solgt.db.MT_parquet import get_parquet_as_df
 import solgt.priceindex.hedonic as hmi
 import solgt.priceindex.repeatsales as rsi
+from solgt.timeseries.filter import conv_smoother
 from added_data import get_added_data
 
 
@@ -34,21 +35,36 @@ postcode = "postcode"
 prom_code = "PROM"
 
 
-
 t_switch1_diff = 28  # Four weeks
 t_switch0_diff = 28 * 2  # Eight weeks
 AD_diff_days = 365  # Only use data from last year for the HMI
 
+# Hard coded dates
+date0 = datetime.date(2000, 1, 4)
+HMI1_start_date = datetime.date(2008, 1, 1)
+RSI_start_date = datetime.date(2010, 1, 1) # This is where RSI_weekly starts getting sufficiently populated
+HMI1_stop_date = datetime.date(2011, 1, 1) # A transition period between HMI1 and RSI stops here
+
+# Dynamic date
+todaydate = datetime.date.today() 
 
 
+def get_CBI_HMII_monthly(df_MT):
+    return hmi.get_HMI(df_MT, HMI1_start_date, todaydate, "monthly")
 
-def get_HMI_AD_weekly():
+
+def get_CBI_RSI_weekly(df_MT):  
+    # TODO: Use LORSI Cube instead
+    return rsi.get_RSI(df_MT, date0, todaydate, "weekly")
+
+
+def get_CBI_HMI_AD_weekly():
     """
     This function computes the HMI from added data and returns a weekly HMI based on that data.
     """
     
     # Get (locally stored) added data
-    path_AD =  "../../../data/dataprocessing/added_data/"
+    path_AD =  "../../py/data/dataprocessing/added_data/"
     df_AD = get_added_data(path_AD)
 
     # Filter HMI data and create monthly and weekly HMI and save as a figure
@@ -92,13 +108,13 @@ def get_HMI_AD_weekly():
 # TODO: Let it cover a better smooting function --> Make part of LORSI cube?
 # --> DO NOT DO ANY SMOOTHING IN THIS FUNCTION. Smoothing must be done beforehand
 
-def create_CBI_from_HMI_RSI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
+def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
     """
     Stitches together a CBI price index from three different price indices, using the following logic:
     1. Use HMI_monthly for the period before RSI_weekly is sufficiently populated
-    2. Use RSI_weekly for the main period, where it is sufficiently populated
+    2. Use RSI_weekly for the main period, where RSI_weekly is sufficiently populated
     3. Use HMI_AD_weekly, which is a HMI computed from Added Data, for the period after RSI_weekly is no longer sufficiently populated
-    Returns: CBI: a DataFrame with date and price columns, as well as additional information on how the index was created
+    Returns: CBI: a DataFrame with date and price columns, as well as additional columns containing information on how the index was created
     """
 
     # Create start and stop dates for the different indices
@@ -106,19 +122,14 @@ def create_CBI_from_HMI_RSI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
     RSI_start_date = datetime.date(2010, 1, 1) # This is where RSI_weekly starts getting sufficiently populated
     HMI1_stop_date = datetime.date(2011, 1, 1) # A transition period between HMI1 and RSI stops here
 
-    # Create RSI stop date when RSI_weekly count is below 10. This date is also the date of t_switch1
+    # Create RSI stop date when RSI_weekly count is below RSI_count_limit. This date is also the date of t_switch1
+    # TODO: Decide a better transation rule from RSI to HMI_AD
     RSI_stop_date = RSI_weekly[RSI_weekly["count"] > 10]["date"].max()
     t_switch1 = RSI_stop_date
     t_switch0 = RSI_stop_date - datetime.timedelta(days=t_switch0_diff)
 
-    # Filter out data before RSI_start_date, since it is too sparse for the smooth_w to work
+    # Filter out data before RSI_start_date, since it is too sparse 
     RSI_weekly = RSI_weekly[(RSI_weekly["date"] >= RSI_start_date) & (RSI_weekly["date"] <= RSI_stop_date)]
-
-    # Weighted smoothing of the inputs
-    RSI_weekly["price_smooth"] = smooth_w(RSI_weekly["price"], RSI_weekly["count"], 2)
-    HMI_AD_weekly["price_smooth"] = smooth_w(
-        HMI_AD_weekly["price"], HMI_AD_weekly["count"], 2
-    )
 
     # Create a new date series for CBI, starting on the first Monday after the first date in RSI_weekly
     dummy = (
@@ -215,18 +226,29 @@ def get_CBI(df_MT):
     Returns a CBI DataFrame with only the date and price columns.
     """
 
-    # Define time period
-    date0 = datetime.date(2000, 1, 4)
-    HMI1_start_date = datetime.date(2008, 1, 1)
-    todaydate = datetime.date.today() 
-
     # Create HMI and RSI Price Indeces, as well as HMI_AD using Added Data
-    HMI_monthly = hmi.get_HMI(df_MT, HMI1_start_date, todaydate, "monthly")
-    RSI_weekly = rsi.get_RSI(df_MT, date0, todaydate, "weekly")
-    HMI_AD_weekly = get_HMI_AD_weekly()
+    HMI_monthly = get_CBI_HMII_monthly(df_MT)
+    RSI_weekly = get_CBI_RSI_weekly(df_MT)
+    HMI_AD_weekly = get_CBI_HMI_AD_weekly()
+
+    # Store original price indexes before computing Weighted smoothing of the weekly datasets RSI and HMI_AD
+    RSI_weekly["price_orig"] = RSI_weekly["price"]
+    RSI_weekly["count_orig"] = RSI_weekly["count"]
+    HMI_AD_weekly["price_orig"] = HMI_AD_weekly["price"]
+    HMI_AD_weekly["count_orig"] = HMI_AD_weekly["count"]
+
+    # Smooth using something more sophisticated than smooth_w
+    RSI_s, RSI_w_s = conv_smoother(RSI_weekly["price"], RSI_weekly["count"], w_L=4, window_type="gaussian")
+    RSI_weekly["price"] = RSI_s
+    RSI_weekly["count"] = RSI_w_s
+
+
+    HMI_AD_s, HMI_AD_w_s = conv_smoother(HMI_AD_weekly["price"], HMI_AD_weekly["count"], w_L=4, window_type="gaussian")
+    HMI_AD_weekly["price"] = HMI_AD_s
+    HMI_AD_weekly["count"] = HMI_AD_w_s
 
     # Create CBI
-    CBI = create_CBI_from_HMI_RSI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
+    CBI = create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
 
     return CBI
 
@@ -241,7 +263,7 @@ MAIN PROGRAM
 
 period = "monthly"
 
-df_MT = get_parquet_as_df("C:\Code\data\MT.parquet")
+df_MT = get_parquet_as_df("C:\Code\py\data\MT.parquet")
 df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month, x.day))
 df_MT[postcode] = df_MT[postcode].astype(int)
 
@@ -256,16 +278,15 @@ HMI1_start_date = datetime.date(2008, 1, 1)
 todaydate = datetime.date.today() 
 
 # Create HMI and RSI Price Indeces
-HMI_monthly = hmi.get_HMI(df_MT, HMI1_start_date, todaydate, "monthly")
-RSI_weekly = rsi.get_RSI(df_MT, date0, todaydate, "weekly")
-HMI_AD_weekly = get_HMI_AD_weekly()
+HMI_monthly = get_CBI_HMII_monthly(df_MT)
+RSI_weekly = get_CBI_RSI_weekly(df_MT)
+HMI_AD_weekly = get_CBI_HMI_AD_weekly()
 
-CBI = create_CBI_from_HMI_RSI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
+
+CBI = create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
 
 # Keep only the date and price columns
 CBI = CBI[["date", "price"]]
-
-return CBI
 
 
 # Plot CBI using graph object
