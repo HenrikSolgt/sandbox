@@ -57,13 +57,3 @@ df.loc[412, "postcode"] = 694
 res = PI.reindex(df)
 
 res[res["msg"] != ""]
-
-# df_full = df_MT.copy()
-# df_full.rename(columns={"address": "adresse"}, inplace=True)
-# df_full["fromdate"] = dates
-# df_full["todate"] = datetime.date(2023, 1, 1)
-
-# df_full2 = df_full[["unitkey", "fromdate", "todate", "adresse"]].reset_index(drop=True)
-
-
-# res2 = PI.reindex(df_full2)
