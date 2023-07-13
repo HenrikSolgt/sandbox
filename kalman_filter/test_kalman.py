@@ -2,11 +2,19 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# import graph object
+import plotly.graph_objs as go
+
 # Load the data
-df_comb_new = pd.read_csv('rsi_comb.csv')
+df_comb_new = pd.read_csv("C:\Code\py\data\RSI_comb.csv")
 df_comb_new['date'] = pd.to_datetime(df_comb_new['date'])
 df_comb_new.set_index('date', inplace=True)
 df_comb_new.drop(columns=['Unnamed: 0'], inplace=True)
+
+# Set the log-mean to zero
+dummy = np.log(df_comb_new)
+dummy = dummy - dummy.mean()
+df_comb_new = np.exp(dummy)
 
 # Take the log of the data
 df_comb_new_log = np.log(df_comb_new)
@@ -41,6 +49,7 @@ def kalman_filter(y, Q, R):
     return x, P
 
 # Apply the Kalman filter to the log-transformed data
+y = df_comb_new_log
 estimated_log, P = kalman_filter(df_comb_new_log.to_numpy(), Q.to_numpy(), R.to_numpy())
 
 # Convert the state estimates back to the original scale
@@ -49,12 +58,25 @@ estimated_price_indices = np.exp(estimated_log)
 # Create a dataframe for the estimated price indices
 df_estimated = pd.DataFrame(estimated_price_indices, columns=df_comb_new_log.columns, index=df_comb_new_log.index)
 
+
+
 # Plot the unfiltered and filtered timeseries
-plt.figure(figsize=(14,7))
-plt.plot(df_comb_new, linestyle='dotted')
-plt.plot(df_estimated)
-plt.title('Unfiltered and Filtered Repeat Sales Price Indices')
-plt.xlabel('Date')
-plt.ylabel('Price Index')
-plt.legend(['RSI60 Unfiltered', 'RSI60-90 Unfiltered', 'RSI90 Unfiltered', 'RSI60 Filtered', 'RSI60-90 Filtered', 'RSI90 Filtered'])
-plt.show()
+fig = go.Figure()
+fig = fig.add_trace(go.Scatter(x=df_comb_new.index, y=df_comb_new['RSI0'], mode='lines', name='RSI0 Unfiltered'))
+fig = fig.add_trace(go.Scatter(x=df_comb_new.index, y=df_comb_new['RSI60'], mode='lines', name='RSI60 Unfiltered'))
+fig = fig.add_trace(go.Scatter(x=df_comb_new.index, y=df_comb_new['RSI90'], mode='lines', name='RSI90 Unfiltered'))
+fig = fig.add_trace(go.Scatter(x=df_estimated.index, y=df_estimated['RSI0'], mode='lines', name='RSI0 Filtered'))
+fig = fig.add_trace(go.Scatter(x=df_estimated.index, y=df_estimated['RSI60'], mode='lines', name='RSI60 Filtered'))
+fig = fig.add_trace(go.Scatter(x=df_estimated.index, y=df_estimated['RSI90'], mode='lines', name='RSI90 Filtered'))
+fig.show()
+
+
+
+# plt.figure(figsize=(14,7))
+# plt.plot(df_comb_new, linestyle='dotted')
+# plt.plot(df_estimated)
+# plt.title('Unfiltered and Filtered Repeat Sales Price Indices')
+# plt.xlabel('Date')
+# plt.ylabel('Price Index')
+# plt.legend(['RSI0 Unfiltered', 'RSI60 Unfiltered', 'RSI90 Unfiltered', 'RSI0 Filtered', 'RSI60 Filtered', 'RSI90 Filtered'])
+# plt.show()
