@@ -1,3 +1,4 @@
+import datetime
 import numpy as np
 import pandas as pd
 
@@ -5,9 +6,13 @@ from solgt.db.MT_parquet import get_parquet_as_df
 
 from solgt.priceindex.priceindex import Priceindex
 from solgt.priceindex.cbi_cube_api_class import CBI_cube_api_class
+import solgt.priceindex.priceindex_utils as pi_utils
 
 kommunenummer_Oslo = 301
 kommunenummer_default = kommunenummer_Oslo  # 301 is Oslo
+
+
+# TODO: Kjør oppslag av PROM og adresse for 
 
 
 
@@ -44,6 +49,21 @@ for i in k_idx:
     df.loc[i+400, "unitkey"] = np.NaN
 
 
-df3 = df.copy()
+df.loc[412, "PROM"] = 64
+df.loc[412, "postcode"] = 694
+
+
 
 res = PI.reindex(df)
+
+res[res["msg"] != ""]
+
+# df_full = df_MT.copy()
+# df_full.rename(columns={"address": "adresse"}, inplace=True)
+# df_full["fromdate"] = dates
+# df_full["todate"] = datetime.date(2023, 1, 1)
+
+# df_full2 = df_full[["unitkey", "fromdate", "todate", "adresse"]].reset_index(drop=True)
+
+
+# res2 = PI.reindex(df_full2)
