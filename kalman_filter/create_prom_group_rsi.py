@@ -25,7 +25,6 @@ gr_krets = "grunnkrets_id"
 postcode = "postcode"
 prom_code = "PROM"
 
-
 # Define time period
 date0 = datetime.date(2012, 1, 1)
 date1 = datetime.date(2023, 1, 1)
@@ -53,10 +52,16 @@ RSI2 = get_RSI(df2, date0, date1, period=period, interpolate=True)
 comb = pd.DataFrame()
 comb["date"] = RSI0["date"]
 comb["RSI0"] = RSI0["price"]
+comb["RSI0_count"] = RSI0["count"]
 comb["RSI60"] = RSI1["price"]
+comb["RSI60_count"] = RSI1["count"]
 comb["RSI90"] = RSI2["price"]
+comb["RSI90_count"] = RSI2["count"]
 
 # RSI0.to_csv("C:\Code\py\data\RSI60.csv")
 # RSI1.to_csv("C:\Code\py\data\RSI6090.csv")
 # RSI2.to_csv("C:\Code\py\data\RSI90.csv")
 comb.to_csv("C:\Code\py\data\RSI_comb.csv")
+
+
+(comb == 0).sum()

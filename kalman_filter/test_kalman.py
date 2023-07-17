@@ -12,12 +12,12 @@ df_comb_new.set_index('date', inplace=True)
 df_comb_new.drop(columns=['Unnamed: 0'], inplace=True)
 
 # Set the log-mean to zero
-dummy = np.log(df_comb_new)
-dummy = dummy - dummy.mean()
-df_comb_new = np.exp(dummy)
 
-# Take the log of the data
-df_comb_new_log = np.log(df_comb_new)
+RSI_cols = ['RSI0', 'RSI60', 'RSI90']
+
+dummy = np.log(df_comb_new[RSI_cols])
+df_comb_new_log = dummy - dummy.mean()
+df_comb_new[RSI_cols] = np.exp(df_comb_new_log)
 
 # Estimate the process noise and measurement noise covariance matrices
 Q = df_comb_new_log.diff().cov()

@@ -49,11 +49,11 @@ for i in k_idx:
     df.loc[i+400, "unitkey"] = np.NaN
 
 
-df.loc[412, "PROM"] = 64
-df.loc[412, "postcode"] = 694
+# df.loc[412, "PROM"] = 64
+# df.loc[412, "postcode"] = 694
 
 
 
-res = PI.reindex(df)
+res = PI.reindex(df.sample(100).copy())
 
 res[res["msg"] != ""]
