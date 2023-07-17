@@ -72,6 +72,12 @@ fig.show()
 
 
 
+# Make a random dataframe a
+a = pd.DataFrame(np.random.randint(0,100,size=(100, 4)), columns=list('ABCD'))
+
+a.diff() - (a - a.shift())
+
+
 # plt.figure(figsize=(14,7))
 # plt.plot(df_comb_new, linestyle='dotted')
 # plt.plot(df_estimated)
