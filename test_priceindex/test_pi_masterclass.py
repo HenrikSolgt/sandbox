@@ -22,7 +22,9 @@ unitkey='unitkey'
 kommunenummer='kommunenummer'
 
 
-PI = Priceindex()
+PI = Priceindex(return_msg_col=True, print_messages=True)
+PI.set_print_messages(False)
+PI.set_return_msg_col(False)
 self = PI
 
 from solgt.db.MT_parquet import get_parquet_as_df
@@ -53,7 +55,5 @@ for i in k_idx:
 # df.loc[412, "postcode"] = 694
 
 
+res = PI.reindex(df.sample(1000).copy())
 
-res = PI.reindex(df.sample(100).copy())
-
-res[res["msg"] != ""]
