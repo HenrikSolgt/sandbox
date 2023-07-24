@@ -49,5 +49,8 @@ for i in k_idx:
     df.loc[i+400, "unitkey"] = np.NaN
 
 
-# df.loc[412, "PROM"] = 64
-# df.loc[412, "postcode"] = 694
+
+uk_df = pd.DataFrame(columns = ["unitkey"])
+uk_df["unitkey"] =  ["301-214-58-42"]
+
+PI.get_priceindex_by_unitkey(uk_df)
