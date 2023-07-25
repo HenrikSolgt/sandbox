@@ -50,7 +50,25 @@ for i in k_idx:
 
 
 
-uk_df = pd.DataFrame(columns = ["unitkey"])
-uk_df["unitkey"] =  ["301-214-58-42"]
+res = PI.get_priceindex_by_unitkey(df)
 
-PI.get_priceindex_by_unitkey(uk_df)
+
+for (i, col) in enumerate(res.columns):
+    print(i, col)
+    sub = res[col]
+    print(sub.mean())
+
+
+
+res2 = PI.get_priceindex_by_kommune()
+
+import plotly.graph_objects as go
+fig = go.Figure()
+fig = fig.add_trace(go.Scatter(x=res2.index, y=res2["price"]))
+fig.show()
+
+res2.reset_index(inplace=True)
+
+fig = go.Figure()
+fig = fig.add_trace(go.Scatter(x=res2.index, y=res2["index"]))
+fig.show()
