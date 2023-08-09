@@ -16,10 +16,12 @@ kommunenummer_default = kommunenummer_Oslo  # 301 is Oslo
 
 
 
-t0='fromdate'
-t1='todate'
-unitkey='unitkey'
-kommunenummer='kommunenummer'
+t0="fromdate"
+t1="todate"
+prom="PROM"
+postcode="postcode"
+unitkey="unitkey"
+kommunenummer="kommunenummer"
 
 
 PI = Priceindex(return_msg_col=True, print_messages=True)
@@ -33,42 +35,21 @@ dates = df_MT["sold_date"]
 
 
 # Sample some unitkeys
-uks = pd.DataFrame()
-uks["unitkey"] = df_MT["unitkey"].sample(1000).reset_index(drop=True)
-df = uks
-
+df = pd.DataFrame()
+df[["unitkey", "address", "postcode", "PROM"]] = df_MT[["unitkey", "address", "postcode", "PROM"]].sample(1000).reset_index(drop=True)
 
 df["fromdate"] = dates.sample(1000).reset_index(drop=True)
 df["todate"] = dates.sample(1000).reset_index(drop=True)
 
-
-k_idx = [10, 12, 15]
-for i in k_idx:
-    df.loc[i, "unitkey"] = np.NaN
-    df.loc[i, "kommunenummer"] = kommunenummer_Oslo
-    df.loc[i+400, "unitkey"] = np.NaN
+# Swap fromdate and todate if fromdate > todate
+mask = df["fromdate"] > df["todate"]
+df.loc[mask, ["fromdate", "todate"]] = df.loc[mask, ["todate", "fromdate"]].values
 
 
-
-res = PI.get_priceindex_by_unitkey(df)
-
-
-for (i, col) in enumerate(res.columns):
-    print(i, col)
-    sub = res[col]
-    print(sub.mean())
+df.loc[1, "PROM"] = np.nan
+df.loc[1, "unitkey"] = "123456789"
 
 
+res = PI.reindex2(df)
 
-res2 = PI.get_priceindex_by_kommune()
-
-import plotly.graph_objects as go
-fig = go.Figure()
-fig = fig.add_trace(go.Scatter(x=res2.index, y=res2["price"]))
-fig.show()
-
-res2.reset_index(inplace=True)
-
-fig = go.Figure()
-fig = fig.add_trace(go.Scatter(x=res2.index, y=res2["index"]))
-fig.show()
+res.loc[1, "msg"]
