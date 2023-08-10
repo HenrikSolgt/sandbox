@@ -59,5 +59,5 @@ df.loc[1, "unitkey"] = "15125"
 df.loc[2, "unitkey"] = "0"
 df = df.head(8)
 
-res = PI.get_priceindex_by_unitkey(df)
+res = PI.reindex_by_unitkey(df)
 print(res)
