@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "test-dev-mt"
+version = "0.1.0"
+description = ""
+authors = ["Henrik Anfinsen <henrik@solgt.no>"]
+readme = "README.md"
+packages = [{include = "test_dev_mt"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pymongo = "^4.4.1"
+pandas = "^2.0.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
