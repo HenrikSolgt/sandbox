@@ -13,13 +13,12 @@ def home():
 
 
 # Priceindex route
-@app.route("/pi/", methods=['POST'])
+@app.route("/pi/", methods=["POST"])
 def get_priceindex():
     # return "Hello! Priceindex!"
 
     pi = Priceindex()
     dates = pi.date.tolist()
-
 
     res = {"date": (pi.date).tolist(), "price": (pi.price).tolist()}
 

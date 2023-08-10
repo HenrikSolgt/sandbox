@@ -1,4 +1,3 @@
-
 # Python packages
 import datetime
 import numpy as np
@@ -17,15 +16,20 @@ AD_diff_days = 365  # Only use data from last year for the HMI
 # Hard coded dates
 date0 = datetime.date(2000, 1, 4)
 HMI1_start_date = datetime.date(2008, 1, 1)
-RSI_start_date = datetime.date(2010, 1, 1) # This is where RSI_weekly starts getting sufficiently populated
-HMI1_stop_date = datetime.date(2011, 1, 1) # A transition period between HMI1 and RSI stops here
+RSI_start_date = datetime.date(
+    2010, 1, 1
+)  # This is where RSI_weekly starts getting sufficiently populated
+HMI1_stop_date = datetime.date(
+    2011, 1, 1
+)  # A transition period between HMI1 and RSI stops here
 
 # Dynamic date
-todaydate = datetime.date.today() 
+todaydate = datetime.date.today()
 
 
 def get_CBI_HMII_monthly(df_MT):
     return hmi.get_HMI(df_MT, HMI1_start_date, todaydate, "monthly")
+
 
 def get_CBI_RSI_weekly(df_MT):
     return rsi.get_RSI(df_MT, date0, todaydate, "weekly")
@@ -35,15 +39,15 @@ def get_CBI_HMI_AD_weekly():
     """
     This function computes the HMI from added data and returns a weekly HMI based on that data.
     """
-    
+
     # Get (locally stored) added data
-    path_AD =  "C:/Code/py/data/dataprocessing/added_data/"
+    path_AD = "C:/Code/py/data/dataprocessing/added_data/"
     df_AD = get_added_data(path_AD)
 
     # Filter HMI data and create monthly and weekly HMI and save as a figure
     t1 = datetime.datetime.now().astimezone()
     t0 = datetime.datetime.now().astimezone() - datetime.timedelta(days=AD_diff_days)
-    df_AD = df_AD[ (df_AD['sold_date'] > t0) & (df_AD['sold_date'] <= t1) ]
+    df_AD = df_AD[(df_AD["sold_date"] > t0) & (df_AD["sold_date"] <= t1)]
 
     # Create date categorical variable
     t1 = min(df_AD["sold_date"])
@@ -78,8 +82,9 @@ def get_CBI_HMI_AD_weekly():
     return HMI_AD_weekly
 
 
-
-def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly, RSI_stop_date=None):
+def create_CBI_from_HMI_RSI_HMI_AD(
+    HMI_monthly, RSI_weekly, HMI_AD_weekly, RSI_stop_date=None
+):
     """
     Stitches together a CBI price index from three different price indices, using the following logic:
     1. Use HMI_monthly for the period before RSI_weekly is sufficiently populated
@@ -99,7 +104,9 @@ def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly, RSI_s
     t_switch0 = RSI_stop_date - datetime.timedelta(days=t_switch0_diff)
 
     # Filter out data before RSI_start_date, since it is too sparse for the smooth_w to work
-    RSI_weekly = RSI_weekly[(RSI_weekly["date"] >= RSI_start_date) & (RSI_weekly["date"] <= RSI_stop_date)]
+    RSI_weekly = RSI_weekly[
+        (RSI_weekly["date"] >= RSI_start_date) & (RSI_weekly["date"] <= RSI_stop_date)
+    ]
 
     # Create a new date series for CBI, starting on the first Monday after the first date in RSI_weekly
     dummy = (
@@ -189,10 +196,9 @@ def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly, RSI_s
     return CBI
 
 
-
 def get_CBI(df_MT):
     """
-    Creates a CBI using create_CBI_from_HMI_RSI_AD, by first fetching all necessary data from the MT database, as well as Added Data. 
+    Creates a CBI using create_CBI_from_HMI_RSI_AD, by first fetching all necessary data from the MT database, as well as Added Data.
     Returns a CBI DataFrame with only the date and price columns.
     """
 
@@ -207,12 +213,9 @@ def get_CBI(df_MT):
 
     # Smooth using something more sophisticated than smooth_w
     RSI_weekly["price"] = smooth_w(RSI_weekly["price"], RSI_weekly["count"], 2)
-    HMI_AD_weekly["price"] = smooth_w(
-        HMI_AD_weekly["price"], HMI_AD_weekly["count"], 2
-    )
+    HMI_AD_weekly["price"] = smooth_w(HMI_AD_weekly["price"], HMI_AD_weekly["count"], 2)
 
     # Create CBI by stitching together HMI, RSI and HMI_AD
     CBI = create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
 
     return CBI
-

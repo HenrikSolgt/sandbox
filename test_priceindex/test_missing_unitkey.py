@@ -12,20 +12,20 @@ kommunenummer_Oslo = 301
 kommunenummer_default = kommunenummer_Oslo  # 301 is Oslo
 
 
-t0='fromdate'
-t1='todate'
-unitkey='unitkey'
-kommunenummer='kommunenummer'
+t0 = "fromdate"
+t1 = "todate"
+unitkey = "unitkey"
+kommunenummer = "kommunenummer"
 
 
 PI = Priceindex(return_msg_col=True, print_messages=True)
 self = PI
 
 from solgt.db.MT_parquet import get_parquet_as_df
-df_MT = get_parquet_as_df( "..\..\py\data\MT.parquet")
+
+df_MT = get_parquet_as_df("..\..\py\data\MT.parquet")
 
 dates = df_MT["sold_date"]
-
 
 
 # Sample some unitkeys
@@ -37,4 +37,3 @@ df["fromdate"] = datetime.date(2020, 1, 1)
 df["todate"] = datetime.date(2022, 1, 1)
 
 res = PI.reindex(df)
-

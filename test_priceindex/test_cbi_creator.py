@@ -42,18 +42,22 @@ AD_diff_days = 365  # Only use data from last year for the HMI
 # Hard coded dates
 date0 = datetime.date(2000, 1, 4)
 HMI1_start_date = datetime.date(2008, 1, 1)
-RSI_start_date = datetime.date(2010, 1, 1) # This is where RSI_weekly starts getting sufficiently populated
-HMI1_stop_date = datetime.date(2011, 1, 1) # A transition period between HMI1 and RSI stops here
+RSI_start_date = datetime.date(
+    2010, 1, 1
+)  # This is where RSI_weekly starts getting sufficiently populated
+HMI1_stop_date = datetime.date(
+    2011, 1, 1
+)  # A transition period between HMI1 and RSI stops here
 
 # Dynamic date
-todaydate = datetime.date.today() 
+todaydate = datetime.date.today()
 
 
 def get_CBI_HMII_monthly(df_MT):
     return hmi.get_HMI(df_MT, HMI1_start_date, todaydate, "monthly")
 
 
-def get_CBI_RSI_weekly(df_MT):  
+def get_CBI_RSI_weekly(df_MT):
     # TODO: Use LORSI Cube instead
     return rsi.get_RSI(df_MT, date0, todaydate, "weekly")
 
@@ -62,15 +66,15 @@ def get_CBI_HMI_AD_weekly():
     """
     This function computes the HMI from added data and returns a weekly HMI based on that data.
     """
-    
+
     # Get (locally stored) added data
-    path_AD =  "../../py/data/dataprocessing/added_data/"
+    path_AD = "../../py/data/dataprocessing/added_data/"
     df_AD = get_added_data(path_AD)
 
     # Filter HMI data and create monthly and weekly HMI and save as a figure
     t1 = datetime.datetime.now().astimezone()
     t0 = datetime.datetime.now().astimezone() - datetime.timedelta(days=AD_diff_days)
-    df_AD = df_AD[ (df_AD['sold_date'] > t0) & (df_AD['sold_date'] <= t1) ]
+    df_AD = df_AD[(df_AD["sold_date"] > t0) & (df_AD["sold_date"] <= t1)]
 
     # Create date categorical variable
     t1 = min(df_AD["sold_date"])
@@ -108,6 +112,7 @@ def get_CBI_HMI_AD_weekly():
 # TODO: Let it cover a better smooting function --> Make part of LORSI cube?
 # --> DO NOT DO ANY SMOOTHING IN THIS FUNCTION. Smoothing must be done beforehand
 
+
 def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
     """
     Stitches together a CBI price index from three different price indices, using the following logic:
@@ -119,8 +124,12 @@ def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
 
     # Create start and stop dates for the different indices
     HMI1_start_date = HMI_monthly["date"].min()
-    RSI_start_date = datetime.date(2010, 1, 1) # This is where RSI_weekly starts getting sufficiently populated
-    HMI1_stop_date = datetime.date(2011, 1, 1) # A transition period between HMI1 and RSI stops here
+    RSI_start_date = datetime.date(
+        2010, 1, 1
+    )  # This is where RSI_weekly starts getting sufficiently populated
+    HMI1_stop_date = datetime.date(
+        2011, 1, 1
+    )  # A transition period between HMI1 and RSI stops here
 
     # Create RSI stop date when RSI_weekly count is below RSI_count_limit. This date is also the date of t_switch1
     # TODO: Decide a better transation rule from RSI to HMI_AD
@@ -128,8 +137,10 @@ def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
     t_switch1 = RSI_stop_date
     t_switch0 = RSI_stop_date - datetime.timedelta(days=t_switch0_diff)
 
-    # Filter out data before RSI_start_date, since it is too sparse 
-    RSI_weekly = RSI_weekly[(RSI_weekly["date"] >= RSI_start_date) & (RSI_weekly["date"] <= RSI_stop_date)]
+    # Filter out data before RSI_start_date, since it is too sparse
+    RSI_weekly = RSI_weekly[
+        (RSI_weekly["date"] >= RSI_start_date) & (RSI_weekly["date"] <= RSI_stop_date)
+    ]
 
     # Create a new date series for CBI, starting on the first Monday after the first date in RSI_weekly
     dummy = (
@@ -219,10 +230,9 @@ def create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly):
     return CBI
 
 
-
 def get_CBI(df_MT):
     """
-    Creates a CBI using create_CBI_from_HMI_RSI_AD, by first fetching all necessary data from the MT database, as well as Added Data. 
+    Creates a CBI using create_CBI_from_HMI_RSI_AD, by first fetching all necessary data from the MT database, as well as Added Data.
     Returns a CBI DataFrame with only the date and price columns.
     """
 
@@ -238,12 +248,15 @@ def get_CBI(df_MT):
     HMI_AD_weekly["count_orig"] = HMI_AD_weekly["count"]
 
     # Smooth using something more sophisticated than smooth_w
-    RSI_s, RSI_w_s = conv_smoother(RSI_weekly["price"], RSI_weekly["count"], w_L=4, window_type="gaussian")
+    RSI_s, RSI_w_s = conv_smoother(
+        RSI_weekly["price"], RSI_weekly["count"], w_L=4, window_type="gaussian"
+    )
     RSI_weekly["price"] = RSI_s
     RSI_weekly["count"] = RSI_w_s
 
-
-    HMI_AD_s, HMI_AD_w_s = conv_smoother(HMI_AD_weekly["price"], HMI_AD_weekly["count"], w_L=4, window_type="gaussian")
+    HMI_AD_s, HMI_AD_w_s = conv_smoother(
+        HMI_AD_weekly["price"], HMI_AD_weekly["count"], w_L=4, window_type="gaussian"
+    )
     HMI_AD_weekly["price"] = HMI_AD_s
     HMI_AD_weekly["count"] = HMI_AD_w_s
 
@@ -251,9 +264,6 @@ def get_CBI(df_MT):
     CBI = create_CBI_from_HMI_RSI_HMI_AD(HMI_monthly, RSI_weekly, HMI_AD_weekly)
 
     return CBI
-
-
-
 
 
 """
@@ -268,14 +278,15 @@ df_MT[date_col] = df_MT[date_col].apply(lambda x: datetime.date(x.year, x.month,
 df_MT[postcode] = df_MT[postcode].astype(int)
 
 # Convert sold_date to datetime.date
-df_MT["sold_date"] = df_MT["sold_date"].apply(lambda x: datetime.date(x.year, x.month, x.day))  
-
+df_MT["sold_date"] = df_MT["sold_date"].apply(
+    lambda x: datetime.date(x.year, x.month, x.day)
+)
 
 
 # Define time period
 date0 = datetime.date(2000, 1, 4)
 HMI1_start_date = datetime.date(2008, 1, 1)
-todaydate = datetime.date.today() 
+todaydate = datetime.date.today()
 
 # Create HMI and RSI Price Indeces
 HMI_monthly = get_CBI_HMII_monthly(df_MT)
@@ -291,8 +302,9 @@ CBI = CBI[["date", "price"]]
 
 # Plot CBI using graph object
 fig = go.Figure()
-fig = fig.add_trace(go.Scatter(x=CBI["date"], y=CBI["price"], mode="lines", name="HMI1"))
+fig = fig.add_trace(
+    go.Scatter(x=CBI["date"], y=CBI["price"], mode="lines", name="HMI1")
+)
 # fig = fig.add_trace(go.Scatter(x=CBI["date"], y=CBI["HMI1_weight"], mode="lines", name="HMI1 W"))
 # fig = fig.add_trace(go.Scatter(x=CBI["date"], y=CBI["HMI2_weight"], mode="lines", name="HMI2 W"))
 fig.show()
-

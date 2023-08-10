@@ -12,31 +12,37 @@ kommunenummer_Oslo = 301
 kommunenummer_default = kommunenummer_Oslo  # 301 is Oslo
 
 
-# TODO: Kjør oppslag av PROM og adresse for 
+# TODO: Kjør oppslag av PROM og adresse for
+
+# Suppress warning
+pd.options.mode.chained_assignment = None  # default='warn'
 
 
-
-t0="fromdate"
-t1="todate"
-prom="PROM"
-postcode="postcode"
-unitkey="unitkey"
-kommunenummer="kommunenummer"
+t0 = "fromdate"
+t1 = "todate"
+prom = "PROM"
+postcode = "postcode"
+unitkey = "unitkey"
+kommunenummer = "kommunenummer"
 
 
 PI = Priceindex(return_msg_col=True, print_messages=True)
 self = PI
 
 from solgt.db.MT_parquet import get_parquet_as_df
-df_MT = get_parquet_as_df( "..\..\py\data\MT.parquet")
+
+df_MT = get_parquet_as_df("..\..\py\data\MT.parquet")
 
 dates = df_MT["sold_date"]
 
 
-
 # Sample some unitkeys
 df = pd.DataFrame()
-df[["unitkey", "address", "postcode", "PROM"]] = df_MT[["unitkey", "address", "postcode", "PROM"]].sample(1000).reset_index(drop=True)
+df[["unitkey", "address", "postcode", "PROM"]] = (
+    df_MT[["unitkey", "address", "postcode", "PROM"]]
+    .sample(1000)
+    .reset_index(drop=True)
+)
 
 df["fromdate"] = dates.sample(1000).reset_index(drop=True)
 df["todate"] = dates.sample(1000).reset_index(drop=True)
@@ -45,11 +51,18 @@ df["todate"] = dates.sample(1000).reset_index(drop=True)
 mask = df["fromdate"] > df["todate"]
 df.loc[mask, ["fromdate", "todate"]] = df.loc[mask, ["todate", "fromdate"]].values
 
-
 df.loc[1, "PROM"] = np.nan
 df.loc[1, "unitkey"] = "123456789"
 
+df.loc[4, "PROM"] = np.nan
+df.loc[4, "address"] = np.nan
+df.loc[4, "postcode"] = np.nan
+df.loc[4, "unitkey"] = "0"
+df.loc[5, "unitkey"] = "0"
+df.loc[5, "PROM"] = np.nan
+df.loc[6, "unitkey"] = "0"
+df.loc[6, "PROM"] = np.nan
 
-res = PI.reindex2(df)
+df = df.head(10)
 
-res.loc[1, "msg"]
+res = PI.reindex(df, all_error_msgs=False)
