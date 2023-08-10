@@ -51,18 +51,13 @@ df["todate"] = dates.sample(1000).reset_index(drop=True)
 mask = df["fromdate"] > df["todate"]
 df.loc[mask, ["fromdate", "todate"]] = df.loc[mask, ["todate", "fromdate"]].values
 
-df.loc[1, "PROM"] = np.nan
-df.loc[1, "unitkey"] = "123456789"
 
-df.loc[4, "PROM"] = np.nan
-df.loc[4, "address"] = np.nan
-df.loc[4, "postcode"] = np.nan
-df.loc[4, "unitkey"] = "0"
-df.loc[5, "unitkey"] = "0"
-df.loc[5, "PROM"] = np.nan
-df.loc[6, "unitkey"] = "0"
-df.loc[6, "PROM"] = np.nan
+df.loc[0:3, "PROM"] = np.nan
+df.loc[0:3, "postcode"] = np.nan
+df.loc[0, "unitkey"] = "301-149-552-3"
+df.loc[1, "unitkey"] = "15125"
+df.loc[2, "unitkey"] = "0"
+df = df.head(8)
 
-df = df.head(10)
-
-res = PI.reindex(df, all_error_msgs=False)
+res = PI.get_priceindex_by_unitkey(df)
+print(res)
