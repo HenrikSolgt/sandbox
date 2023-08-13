@@ -26,7 +26,7 @@ unitkey = "unitkey"
 kommunenummer = "kommunenummer"
 
 
-PI = Priceindex(return_msg_col=True, print_messages=True)
+PI = Priceindex(return_msg_col=False, print_messages=True)
 self = PI
 
 from solgt.db.MT_parquet import get_parquet_as_df
