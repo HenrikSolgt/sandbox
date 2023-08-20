@@ -1,9 +1,42 @@
 import datetime
 import os
-import pymongo
 import pandas as pd
-from solgt.db.MT_parquet import get_parquet_as_df
+import pyarrow.parquet as pq
+import pymongo
+import re
 
+import solgt.db.MT_parquet
+
+# Constants
+date_col = "sold_date"
+postcode = "postcode"
+
+default_MT_dev_parquet_file = "..\..\py\data\MT_dev.parquet"
+
+
+def adresse2postcode(s):
+    # Extracts the postcode from the address line, and returns the postcode as an integer
+    try:
+        # Find the last occurence of a 4 digit number in the string
+        matches = re.findall(r'\d{4}', s)
+        if matches:
+            c = int(matches[-1])
+        else:
+            c = None
+    except:
+        print("Postcode parse failed: ", s)
+        c = None
+    return c
+
+
+def get_postcode(df):
+    # A function extrating the postcode from the column "address" in dataframe df, and storing it in df, if "address" is present in df.
+    if "address" in df.columns:
+        df["postcode"] = df["address"].apply(adresse2postcode)
+    else:
+        df["postcode"] = None
+
+    return df
 
 
 def localize_timezone_UTC(df) :
@@ -11,13 +44,6 @@ def localize_timezone_UTC(df) :
     df[date_cols] = df[date_cols].apply(lambda r: r.dt.tz_localize("UTC"))
     return df
 
-
-def get_DB():
-    """Return the dev or production Mongo database as pymongo object depending on the environment variable 'ENV'."""
-    if os.getenv('APP_ENV') == "development":
-        return get_devDB()
-    else:
-        return get_prodDB()
 
 def get_prodDB():
     """Return the PropertiesProduction Mongo database as pymongo object."""
@@ -50,8 +76,8 @@ def get_matchedtransactions(query={}, limit=int(1e6)):
     Returns:
         Dataframe of matched transactions
     """
-    prodDB = get_devDB()
-    matched_transactions_collection = prodDB["matched_transactions"]
+    devDB = get_devDB()
+    matched_transactions_collection = devDB["matched_transactions"]
     cursor = matched_transactions_collection.find(query).limit(limit)
     df_mt = pd.DataFrame(list(cursor))
 
@@ -84,11 +110,36 @@ def get_matchedtransactions_timeperiod(t0, t1, limit=1000):
 
 
 
+def set_collection_df(df, collection_name=None):
+    """
+    Insert dataframe into collection "collection_name" in PropertiesProduction database.
+    """
+    if collection_name is None:
+        raise ValueError("collection_name must be specified")
+    
+    prodDB = get_prodDB()
+    collection = prodDB[collection_name]
+    collection.drop()
+    collection.insert_many(df.T.to_dict().values())
 
 
-# Fetch raw data from DSS
-data_t0 = datetime.datetime(2000, 1, 1)
-data_t1 = datetime.datetime(3000, 1, 1)
-df = get_matchedtransactions_timeperiod(
-    data_t0, data_t1, limit=int(1e6)
-)
+def get_collection_df(collection_name=None):
+    """
+    Get collection "collection_name" in PropertiesProduction database, and return result as a dataframe.
+    """
+    if collection_name is None:
+        raise ValueError("collection_name must be specified")
+    
+    prodDB = get_prodDB()
+    collection = prodDB[collection_name]
+
+    cursor = collection.find({}, {"_id": 0})
+    res = pd.DataFrame(list(cursor))
+
+    return res
+
+
+
+df = get_collection_df("matched_transactions")
+
+
