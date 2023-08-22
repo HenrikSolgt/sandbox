@@ -3,43 +3,51 @@ import datetime
 import MT_dev_parquet
 import matplotlib.pyplot as plt
 from solgt.priceindex.repeatsales import get_RSI
+from solgt.priceindex.rsi_score import score_RSI
+
+
 
 import plotly.graph_objects as go
 
 
-# Load fylker.csv into a DataFrame, and set the index to "Region"
-fylker_map = pd.read_csv("fylker.csv", sep=",")
-fylker_map.set_index("Region", inplace=True)
+def load_fylker_map():
+    # Load fylker.csv into a DataFrame, and set the index to "Region"
+    fylker_map = pd.read_csv("fylker.csv", sep=",")
+    fylker_map.set_index("Region", inplace=True)
 
-# Find unique fylker
-new_fylker_map = pd.DataFrame(fylker, columns=["Fylke"])
-new_fylker_map["new_fylke"] = [
-    "Viken",
-    "Agder",
-    "Viken",
-    "Troms og Finnmark",
-    "Innlandet",
-    "Vestland",
-    "Møre og Romsdal",
-    "Trøndelag",
-    "Nordland",
-    "Innlandet",
-    "Oslo",
-    "Rogaland",
-    "Vestland",
-    "Trøndelag",
-    "Vestfold og Telemark",
-    "Troms og Finnmark",
-    "Agder",
-    "Vestfold og Telemark",
-    "Viken"
-]
-new_fylker_map.set_index("Fylke", inplace=True)
+    # Find unique fylker
 
-fylker = fylker_map["Fylke"].unique()
-fylker.sort()
-nyfylker = new_fylker_map["new_fylke"].unique()
-nyfylker.sort()
+    fylker = fylker_map["Fylke"].unique()
+    fylker.sort()
+
+    nyfylker_map = pd.DataFrame(data=fylker, columns = ["Fylke"])
+
+    nyfylker_map["Nyfylke"] = [
+        "Viken",
+        "Agder",
+        "Viken",
+        "Troms og Finnmark",
+        "Innlandet",
+        "Vestland",
+        "Møre og Romsdal",
+        "Trøndelag",
+        "Nordland",
+        "Innlandet",
+        "Oslo",
+        "Rogaland",
+        "Vestland",
+        "Trøndelag",
+        "Vestfold og Telemark",
+        "Troms og Finnmark",
+        "Agder",
+        "Vestfold og Telemark",
+        "Viken"
+    ]
+
+    nyfylker_map.set_index("Fylke", inplace=True)
+
+    return fylker_map, nyfylker_map
+
 
 def load_data():
     df = MT_dev_parquet.get_parquet_as_df()
@@ -49,11 +57,13 @@ def load_data():
 
     # Compute region
     df["region"] = df["postcode"] // 100
+    
+    fylker_map, nyfylker_map = load_fylker_map()
 
     # Use fylker to put the correct region to fylke 
     df["fylke"] = df["region"].map(fylker_map["Fylke"])
 
-    df["nyfylke"] = df["fylke"].map(new_fylker_map["new_fylke"])
+    df["nyfylke"] = df["fylke"].map(nyfylker_map["Nyfylke"])
 
     return df
 
@@ -70,12 +80,32 @@ TODO:
 """
 
 
+# Load data
 df = load_data()
+
+# Load fylker and nyfylker
+fylker_map, nyfylker_map = load_fylker_map()
+fylker = fylker_map["Fylke"].unique()
+fylker.sort()
+nyfylker = nyfylker_map["Nyfylke"].unique()
+nyfylker.sort()
 
 df_Oslo = df[df["fylke"] == "Oslo"].reset_index(drop=True)
 
+df_Oslo_train = df_Oslo[df_Oslo["date"] < datetime.date(2020, 1, 1)].reset_index(drop=True)
+df_Oslo_test = df_Oslo[df_Oslo["date"] >= datetime.date(2020, 1, 1)].reset_index(drop=True)
+
+
+
+
+
+
 
 df.groupby("fylke").count()["_id"]
+
+
+
+df.groupby("nyfylke").count()["_id"]
 
 plt.show()
 
@@ -104,6 +134,18 @@ for nyfylke in nyfylker:
 
 
 
+"""
+SCORING
+"""
+
+# Scoring
+score_Norway = score_RSI(df, n_bins_array, all_test_data=True, max_bins=1024)
+
+
+
+"""
+PLOTTING
+"""
 # plot using graph objects
 fig1 = go.Figure()
 print("Plotting:")
@@ -125,9 +167,6 @@ fig2.write_html("../output/rsi_count.html")
 
 
 
-"""
-NYFYLKE
-"""
 # plot using graph objects
 fig3 = go.Figure()
 print("Plotting:")
@@ -147,3 +186,7 @@ for nyfylke in nyfylker:
     fig4 = fig4.add_trace(go.Scatter(x=rsi_nyfylker[nyfylke]["date"], y=rsi_nyfylker[nyfylke]["count"], name=nyfylke))
 fig4.show()
 fig4.write_html("../output/rsi_nyfylke_count.html")
+
+
+
+
