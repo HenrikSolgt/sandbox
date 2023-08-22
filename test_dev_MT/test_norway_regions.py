@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from solgt.priceindex.repeatsales import get_RSI
 from solgt.priceindex.rsi_score import score_RSI
 
+# TODO: Must rewrite score_RSI to use the new repeatedsales code
 
 
 import plotly.graph_objects as go
@@ -139,7 +140,8 @@ SCORING
 """
 
 # Scoring
-score_Norway = score_RSI(df, n_bins_array, all_test_data=True, max_bins=1024)
+n_bins_array = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+score_Norway = score_RSI(df, n_bins_array, all_test_data=False, max_bins=1024)
 
 
 
@@ -154,7 +156,7 @@ for fylke in fylker:
     print(fylke)
     fig1 = fig1.add_trace(go.Scatter(x=rsi_fylker[fylke]["date"], y=rsi_fylker[fylke]["price"], name=fylke))
 fig1.show()
-fig1.write_html("../output/rsi.html")
+# fig1.write_html("../output/rsi.html")
 
 # Plot count
 fig2 = go.Figure()
@@ -163,7 +165,7 @@ for fylke in fylker:
     print(fylke)
     fig2 = fig2.add_trace(go.Scatter(x=rsi_fylker[fylke]["date"], y=rsi_fylker[fylke]["count"], name=fylke))
 fig2.show()
-fig2.write_html("../output/rsi_count.html")
+# fig2.write_html("../output/rsi_count.html")
 
 
 
@@ -175,7 +177,7 @@ for nyfylke in nyfylker:
     print(nyfylke)
     fig3 = fig3.add_trace(go.Scatter(x=rsi_nyfylker[nyfylke]["date"], y=rsi_nyfylker[nyfylke]["price"], name=nyfylke))
 fig3.show()
-fig3.write_html("../output/rsi_nyfylke.html")
+# fig3.write_html("../output/rsi_nyfylke.html")
 
 
 # Plot count
@@ -185,7 +187,7 @@ for nyfylke in nyfylker:
     print(nyfylke)
     fig4 = fig4.add_trace(go.Scatter(x=rsi_nyfylker[nyfylke]["date"], y=rsi_nyfylker[nyfylke]["count"], name=nyfylke))
 fig4.show()
-fig4.write_html("../output/rsi_nyfylke_count.html")
+# fig4.write_html("../output/rsi_nyfylke_count.html")
 
 
 
