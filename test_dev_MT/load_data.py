@@ -168,3 +168,6 @@ def create_fylker_geodata_gpkg(gr_div_number_start):
 def load_zone_geodata_gpkg():
     geodata = gpd.read_file("C:/Code/py/data/dataprocessing/geodata/geodata.gpkg")
     return geodata
+
+
+create_fylker_geodata_gpkg(100)

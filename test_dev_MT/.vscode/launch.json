@@ -12,7 +12,8 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "APP_ENV": "development"
+                "APP_ENV": "development",
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "10"
             }
         }
     ]

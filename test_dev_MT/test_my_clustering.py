@@ -2,13 +2,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-from sklearn.cluster import AgglomerativeClustering 
 import geopandas as gpd
 import shapely.geometry
 
 pd.options.mode.chained_assignment = None
 
-from load_data import load_fylker_map, load_fylker_geodata, load_data, load_fylker_geodata_gpkg
+from load_data import load_fylker_map, load_fylker_geodata, load_data, load_zone_geodata_gpkg
 
 
 
@@ -78,7 +77,7 @@ df["zone"] = df["grunnkrets"] // gr_div_number_start
 
 
 # Load from file
-geodata = load_fylker_geodata_gpkg()
+geodata = load_zone_geodata_gpkg()
 
 # Count the number of entries in each zone in df, and store in count
 geodata = count_by_zone(df, geodata)
