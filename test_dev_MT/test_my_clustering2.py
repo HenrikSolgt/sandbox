@@ -29,7 +29,7 @@ def count_by_zone(df, geodata):
     return geodata
 
 
-def cluster_by_neighbors(geo, tresh_L=500, tresh_U=1000):
+def cluster_by_neighbors(geo, tresh_L=500, tresh_U=1000, print_info=False):
     """
     This function assumes that geodata in geo has columns "zone", "geometry" and "count". 
     It clusters the entries in geo based on distance to other entries in, but only if they are adjacent to each other.
@@ -76,7 +76,10 @@ def cluster_by_neighbors(geo, tresh_L=500, tresh_U=1000):
 
             # We now will work on just clustering the entries that have too small count
             unclustered = geodata_sub[~clustered_mask]
-            print("Unclustered count:" + str(len(unclustered)))
+
+            # Print info about the number of unclustered entries
+            if print_info:
+                print("Unclustered count:" + str(len(unclustered)))
             
             # The clustered will have their own cluster numbers, starting from 0
             clustered["cluster"] = np.arange(len(clustered))

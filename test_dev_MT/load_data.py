@@ -4,29 +4,35 @@ import geopandas as gpd
 import re
 
 
-
 grk_filenames = [
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_03_Oslo_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_11_Rogaland_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_15_More_og_Romsdal_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_18_Nordland_25833_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_30_Viken_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_34_Innlandet_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_38_Vestfold_og_Telemark_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_42_Agder_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_46_Vestland_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_50_Trondelag_25832_Grunnkretser_FGDB.gdb",
-    "C:/Code/py/data/dataprocessing/geodata/Basisdata_54_Troms_og_Finnmark_25833_Grunnkretser_FGDB.gdb"
+    "../../py/data/dataprocessing/geodata/Basisdata_03_Oslo_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_11_Rogaland_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_15_More_og_Romsdal_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_18_Nordland_25833_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_30_Viken_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_34_Innlandet_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_38_Vestfold_og_Telemark_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_42_Agder_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_46_Vestland_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_50_Trondelag_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/dataprocessing/geodata/Basisdata_54_Troms_og_Finnmark_25833_Grunnkretser_FGDB.gdb"
 ]
 
 
-geodata_file = "C:/Code/py/data/dataprocessing/geodata/geodata_parquet.gpkg"
+# Find all files in directory with ending .gdb
+import os
+dir = "../../py/data/dataprocessing/geodata/"
+files_in_dir = os.listdir(dir)
 
+
+postcode_kommune_filename = "../../py/data/dataprocessing/postnummer_kommune.csv"
+
+geodata_file = "../../data/dataprocessing/geodata/geodata_parquet.gpkg"
 
 
 def load_postcode_kommune():
     # Load the file
-    postcode_kommune = pd.read_csv("../../py/data/dataprocessing/postnummer_kommune.csv", sep=",")
+    postcode_kommune = pd.read_csv(postcode_kommune_filename, sep=",")
     # Keep only postnummer and kommune
     postcode_kommune = postcode_kommune[["postnummer", "kommunenummer", "kommunenavn"]]
     # Rename columns
@@ -119,10 +125,13 @@ def load_fylker_geodata():
         match = re.search(pattern, filename)
 
         # Find the name by removing the path and the extension, and substituting underscore with space
-        # Special treatment of Møre og Romsdal, which has an o istead of ø
+        # Special treatment of Møre og Romsdal and Trøndelag, which have an o istead of ø
         substring = match.group(2).replace("_", " ")
         if substring == "More og Romsdal":
             substring = "Møre og Romsdal"
+
+        if substring == "Trondelag":
+            substring = "Trøndelag"
             
         # Store in the list
         gpd_df = gpd.read_file(filename)
@@ -161,12 +170,12 @@ def create_fylker_geodata_gpkg(gr_div_number_start):
     geodata["zone"] =  geodata["grunnkretsnummer"] // gr_div_number_start
     geodata = dissolve_by_zone(geodata) 
 
-    geodata.to_file("C:/Code/py/data/dataprocessing/geodata/geodata.gpkg", driver="GPKG")
+    geodata.to_file("../../data/dataprocessing/geodata/geodata.gpkg", driver="GPKG")
 
 
 
 def load_zone_geodata_gpkg():
-    geodata = gpd.read_file("C:/Code/py/data/dataprocessing/geodata/geodata.gpkg")
+    geodata = gpd.read_file("../../data/dataprocessing/geodata/geodata.gpkg")
     return geodata
 
 
