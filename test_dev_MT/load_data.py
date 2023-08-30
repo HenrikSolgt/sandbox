@@ -5,17 +5,17 @@ import re
 
 
 grk_filenames = [
-    "../../py/data/dataprocessing/geodata/Basisdata_03_Oslo_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_11_Rogaland_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_15_More_og_Romsdal_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_18_Nordland_25833_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_30_Viken_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_34_Innlandet_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_38_Vestfold_og_Telemark_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_42_Agder_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_46_Vestland_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_50_Trondelag_25832_Grunnkretser_FGDB.gdb",
-    "../../py/data/dataprocessing/geodata/Basisdata_54_Troms_og_Finnmark_25833_Grunnkretser_FGDB.gdb"
+    "../../py/data/districtcreation/geodata/Basisdata_03_Oslo_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_11_Rogaland_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_15_More_og_Romsdal_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_18_Nordland_25833_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_30_Viken_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_34_Innlandet_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_38_Vestfold_og_Telemark_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_42_Agder_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_46_Vestland_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_50_Trondelag_25832_Grunnkretser_FGDB.gdb",
+    "../../py/data/districtcreation/geodata/Basisdata_54_Troms_og_Finnmark_25833_Grunnkretser_FGDB.gdb"
 ]
 
 
@@ -142,6 +142,8 @@ def load_fylker_geodata():
         if i == 0:
             geodata = gpd.GeoDataFrame(gpd_df)
         else:
+            print(i)
+            print(filename)
             gpd_df = gpd_df.to_crs(geodata.crs)
             geodata = gpd.GeoDataFrame(pd.concat([geodata, gpd_df], ignore_index=True))
 
@@ -150,6 +152,8 @@ def load_fylker_geodata():
 
     return geodata
 
+
+geo = load_fylker_geodata()
 
 
 def dissolve_by_zone(geodata):
