@@ -31,7 +31,7 @@ self = PI
 
 from solgt.db.MT_parquet import get_parquet_as_df
 
-df_MT = get_parquet_as_df("..\..\py\data\MT.parquet")
+df_MT = get_parquet_as_df("..\..\py\data\MT_dev.parquet")
 
 dates = df_MT["sold_date"]
 
@@ -57,7 +57,9 @@ df.loc[0:3, "postcode"] = np.nan
 df.loc[0, "unitkey"] = "301-149-552-3"
 df.loc[1, "unitkey"] = "15125"
 df.loc[2, "unitkey"] = "0"
-df = df.head(8)
 
-res = PI.reindex_by_unitkey(df)
+
+df["todate"] = datetime.date.today()
+
+res = PI.reindex(df)
 print(res)
