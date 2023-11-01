@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "test-torch"
+version = "0.1.0"
+description = ""
+authors = ["Henrik Anfinsen <henrik@solgt.no>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+torch = "2.1.0"
+numpy = "^1.21.5"
+matplotlib = "^3.5.1"
+torchvision = "0.16.0"
+intel-extension-for-pytorch = "2.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
